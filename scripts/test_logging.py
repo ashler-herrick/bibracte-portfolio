@@ -1,7 +1,7 @@
 # scripts/script2.py
 import logging
 
-from bet_edge.logging_setup import setup_logging
+from bet_edge.setup_logging import setup_logging
 
 
 def main():
@@ -11,6 +11,7 @@ def main():
     numbers = [10, 20, 30, 40, 50]
     mean = sum(numbers) / len(numbers)
     logger.info(f"Calculated mean: {mean}")
+    logger.debug("This is a debug statement.")
 
     logger.info("Script2 finished.")
 
