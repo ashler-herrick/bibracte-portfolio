@@ -15,6 +15,8 @@ def main():
 
     logger.info("Script2 finished.")
 
+    logger.error("This is a error statement.")
+
 
 if __name__ == "__main__":
     setup_logging(default_relpath="../logging_config.yaml")  # Adjust path as needed
