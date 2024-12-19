@@ -27,7 +27,13 @@ def genr_agg_dfm(dfm: DataFrameManager, group_cols: List[str], sum_cols: List[st
     Returns:
         DataFrameManager: A new DataFrameManager containing the aggregated data.
     """
-    agg_df = dfm.dataframe.lazy().group_by(group_cols).agg([pl.sum(col).alias(col) for col in sum_cols]).sort(group_cols).collect()
+    agg_df = (
+        dfm.dataframe.lazy()
+        .group_by(group_cols)
+        .agg([pl.sum(col).alias(col) for col in sum_cols])
+        .sort(group_cols)
+        .collect()
+    )
     dfm = DataFrameManager(agg_df, group_cols)
     return dfm
 
