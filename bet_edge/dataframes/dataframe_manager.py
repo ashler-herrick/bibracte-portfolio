@@ -26,10 +26,14 @@ class DataFrameManager:
     """
 
     def __init__(
-        self, dataframe: pl.DataFrame, primary_key: List[str], dimensions: List[str] = [], measures: List[str] = []
+        self, dataframe: pl.DataFrame, primary_key: List[str], dimensions: List[str], measures: List[str] = []
     ):
         """
-        Initializes the DataFrameManager with a DataFrame and its primary key.
+        Initializes the DataFrameManager with a DataFrame and its primary key. 
+
+        Both a primary key list and list of dimensions are required because a table can have multiple sets of 
+        columns constituting a primary key but only one list of dimensions. They will often be the same, but 
+        sometimes they won't.
 
         Args:
             dataframe (pl.DataFrame):
@@ -44,9 +48,13 @@ class DataFrameManager:
         Raises:
             ValueError:
                 If the primary_key list is empty.
+            ValueError:
+                If the dimensions list is empty.
         """
         if not primary_key:
             raise ValueError("Primary key list cannot be empty.")
+        if not dimensions:
+            raise ValueError("Dimensions must be provided.")
         self._dataframe = dataframe
         self.primary_key = primary_key
         self.dimensions = dimensions
@@ -74,7 +82,7 @@ class DataFrameManager:
             logger.error(f"DataFrame does not have unique primary key columns: {self.primary_key}.")
             duplicates = self._get_non_pk_rows()
             logger.error(f"Duplicate rows in DataFrame:\n{duplicates}")
-            raise ValueError("DataFrame does not have unique primary key columns.")
+            raise AssertionError("DataFrame does not have unique primary key columns.")
 
     def dedupe_on_pk(self, keep: UniqueKeepStrategy = "first") -> "DataFrameManager":
         """
@@ -102,7 +110,7 @@ class DataFrameManager:
             df = self._dataframe.unique(subset=self.primary_key, keep=keep)
             dropped = self._dataframe.height - df.height
             logger.info(f"Successfully dropped {dropped} duplicate rows by deduping on primary key {self.primary_key}.")
-            return DataFrameManager(df, self.primary_key)
+            return DataFrameManager(df, self.primary_key, self.dimensions)
         else:
             logger.info(f"No duplicates found based on primary key {self.primary_key}. No action taken.")
             return self
@@ -121,7 +129,7 @@ class DataFrameManager:
         try:
             self.assert_valid_pk()
             return self
-        except ValueError as e:
+        except AssertionError as e:
             logger.warning(f"Primary key validation failed: {e}")
             logger.info(f"Deduplicating DataFrame to enforce primary key {self.primary_key}.")
             deduped_manager = self.dedupe_on_pk(keep="first")
@@ -187,7 +195,7 @@ class DataFrameManager:
                 A list of column names that are present in both primary keys, representing the foreign key.
                 If there are no common columns, an empty list is returned.
         """
-        foreign_keys = intersection(self.primary_key, other.primary_key)
+        foreign_keys = intersection(self.dimensions, other.dimensions)
         logger.debug(f"Identified foreign key columns between DataFrames: {foreign_keys}")
         return foreign_keys
 

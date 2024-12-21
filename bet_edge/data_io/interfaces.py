@@ -1,20 +1,11 @@
-"""
-This module provides interfaces for interacting with files and managing credentials.
-The interfaces define contracts for file handling operations (e.g., upload, download)
-and credential retrieval, which can be implemented by various providers and handlers.
-"""
-
 from abc import ABC, abstractmethod
 from io import BytesIO
-
+from typing import Optional
 
 class ICredentialProvider(ABC):
     """
     An interface for credential providers that fetch and supply credentials for
     accessing various services (e.g., AWS, databases, etc.).
-
-    Implementations of this interface must define a method for retrieving credentials
-    in the form of a dictionary.
     """
 
     @abstractmethod
@@ -23,80 +14,80 @@ class ICredentialProvider(ABC):
         Fetches credentials and returns them as a dictionary.
 
         Returns:
-            dict: A dictionary containing credentials, e.g.:
-                {
-                    "aws_access_key_id": ...,
-                    "aws_secret_access_key": ...,
-                    "aws_session_token": ...,
-                    "aws_default_region": ...
-                }
-
-        Raises:
-            NotImplementedError: If the method is not implemented in the subclass.
+            dict: A dictionary containing credentials.
         """
         pass
 
 
-class IFileHandler(ABC):
+class IDataStorage(ABC):
     """
-    An interface for file handlers that define operations for managing files, such as
-    uploading and downloading them to/from various storage backends (e.g., AWS S3, local filesystem).
+    Abstract base class for defining data storage operations.
+
+    This class provides a blueprint for implementing various data storage systems
+    that support reading and writing data in different formats.
     """
 
-    @abstractmethod
-    def upload(self, source_path: str, destination_path: str) -> None:
+    def __init__(self, credential_provider: Optional[ICredentialProvider] = None):
         """
-        Uploads a file from a source path to a specified destination.
+        Initializes the storage class with an optional credential provider.
 
-        Parameters:
-            source_path (str): The local or remote path to the file to be uploaded.
-            destination_path (str): The destination path or identifier (e.g., S3 object key, local file path).
+        Args:
+            credential_provider (Optional[ICredentialProvider]): An optional credential provider
+                for handling authentication and access control.
+        """
+        self.credential_provider = credential_provider
 
-        Raises:
-            NotImplementedError: If the method is not implemented in the subclass.
+    @abstractmethod
+    def write_from_file(self, source_file_path: str, destination_identifier: str, format: str = "binary") -> None:
+        """
+        Writes data from a local file to the storage.
+
+        Args:
+            source_file_path (str): The path of the local file to be written to storage.
+            destination_identifier (str): The identifier (e.g., file path or key) for the destination in storage.
+            format (str, optional): The format in which the data should be stored (e.g., "binary", "text").
+                Defaults to "binary".
         """
         pass
 
     @abstractmethod
-    def download(self, source_path: str, destination_path: str) -> None:
+    def read_to_file(self, source_identifier: str, destination_file_path: str, format: str = "binary") -> None:
         """
-        Downloads a file from a specified source to a destination path.
+        Reads data from the storage and writes it to a local file.
 
-        Parameters:
-            source_path (str): The source path or identifier (e.g., S3 object key, local file path).
-            destination_path (str): The local or remote path where the downloaded file will be saved.
-
-        Raises:
-            NotImplementedError: If the method is not implemented in the subclass.
-        """
-        pass
-
-    @abstractmethod
-    def upload_stream(self, data: BytesIO, destination_path: str) -> None:
-        """
-        Uploads data from a binary stream to a specified destination.
-
-        Parameters:
-            data (BytesIO): A binary stream containing the data to upload.
-            destination_path (str): The destination path or identifier.
-
-        Raises:
-            NotImplementedError: If the method is not implemented in the subclass.
+        Args:
+            source_identifier (str): The identifier (e.g., file path or key) of the data in the storage.
+            destination_file_path (str): The path of the local file where the data will be written.
+            format (str, optional): The format in which the data should be read (e.g., "binary", "text").
+                Defaults to "binary".
         """
         pass
 
     @abstractmethod
-    def download_stream(self, source_path: str) -> BytesIO:
+    def write(self, data: BytesIO, destination_identifier: str, format: str = "binary") -> None:
         """
-        Downloads data from a specified source and returns it as a binary stream.
+        Writes data from a BytesIO object to the storage.
 
-        Parameters:
-            source_path (str): The source path or identifier.
+        Args:
+            data (BytesIO): The data to be written to storage.
+            destination_identifier (str): The identifier (e.g., file path or key) for the destination in storage.
+            format (str, optional): The format in which the data should be stored (e.g., "binary", "text").
+                Defaults to "binary".
+        """
+        pass
+
+    @abstractmethod
+    def read(self, source_identifier: str, format: str = "binary") -> BytesIO:
+        """
+        Reads data from the storage into a BytesIO object.
+
+        Args:
+            source_identifier (str): The identifier (e.g., file path or key) of the data in the storage.
+            format (str, optional): The format in which the data should be read (e.g., "binary", "text").
+                Defaults to "binary".
 
         Returns:
-            BytesIO: A binary stream using an in-memory bytes buffer containing the downloaded data.
-
-        Raises:
-            NotImplementedError: If the method is not implemented in the subclass.
+            BytesIO: The data read from the storage as a BytesIO object.
         """
         pass
+

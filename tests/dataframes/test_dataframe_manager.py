@@ -122,7 +122,7 @@ def test_duplicate_pk_rows(duplicate_dfm, duplicate_df_rows):
 
 
 def test_assert_valid_pk_invalid(duplicate_dfm):
-    with pytest.raises(ValueError):
+    with pytest.raises(AssertionError):
         duplicate_dfm.assert_valid_pk()
 
 
@@ -131,7 +131,7 @@ def test_assert_valid_pk_valid(sample_dfm):
 
 
 def test_dedupe_on_pk(duplicate_dfm):
-    with pytest.raises(ValueError):
+    with pytest.raises(AssertionError):
         duplicate_dfm.assert_valid_pk()
 
     dfm = duplicate_dfm.dedupe_on_pk()
@@ -160,3 +160,27 @@ def tet_get_col_diff(sample_dfm, sample_dfm2, duplicate_dfm):
     assert sample_dfm2.get_col_diff(sample_dfm) == ["email"]
 
     assert sample_dfm.get_col_diff(duplicate_dfm) == []
+
+def test_get_foreign_key():
+    df = pl.DataFrame(
+        {
+            "id": [1, 2, 3, 1, 2],
+            "season": [2020, 2020, 2020, 2021, 2021],
+            "week": [1, 1, 1, 1, 1],
+            "team": ["A", "B", "C", "A","B"],
+            "position": ["QB", "TE", "RB", "QB", "TE"]
+        }
+    )
+    dfm = DataFrameManager(df, ["id", "season", "week"], ["id", "season", "week", "team", "position"])
+
+    team = pl.DataFrame(
+        {
+            "season": [2020, 2020, 2020, 2021, 2021],
+            "team": ["A", "B", "C", "A", "B"]
+        }
+    )
+    team_dfm = DataFrameManager(team, ["season", "team"], ["season", "team"])
+
+    fk = dfm.get_foreign_key(team_dfm)
+    assert set(fk) == set(["season", "team"])
+

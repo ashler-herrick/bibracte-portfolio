@@ -3,7 +3,7 @@ import polars as pl
 from polars.testing import assert_frame_equal
 
 
-from bet_edge.dataframes import game_stats as gs
+from bet_edge.dataframes import time_series as ts
 from bet_edge.dataframes.dataframe_manager import DataFrameManager
 
 
@@ -35,7 +35,7 @@ def sample_dfm2():
 
 
 def test_genr_agg_dfm(sample_dfm2):
-    test = gs.genr_agg_dfm(sample_dfm2, ["id"], ["stat1", "stat2"])
+    test = ts.genr_agg_dfm(sample_dfm2, ["id"], ["stat1", "stat2"])
     expected = {
         "id": [1],
         "stat1": 210,
@@ -46,7 +46,7 @@ def test_genr_agg_dfm(sample_dfm2):
 
 
 def test_calc_summary_stats(sample_dfm2):
-    result_dfm = gs.calc_summary_stats(sample_dfm2, ["id"], ["stat1"], "test_attr")
+    result_dfm = ts.calc_summary_stats(sample_dfm2, ["id"], ["stat1"], "test_attr")
 
     expected = {
         "id": [1],
@@ -67,7 +67,7 @@ def test_calc_summary_stats(sample_dfm2):
 
 
 def test_calc_shifted_dfm(sample_dfm2):
-    result_df = gs.calc_shifted_dfm(sample_dfm2, ["id", "season"], ["stat1"], n=1)
+    result_df = ts.calc_shifted_dfm(sample_dfm2, ["id", "season"], ["stat1"], n=1)
     expected_df = pl.DataFrame(
         {
             "id": [1, 1, 1, 1, 1, 1],
@@ -82,7 +82,7 @@ def test_calc_shifted_dfm(sample_dfm2):
 
 
 def test_calc_cuml_stats(sample_dfm2):
-    result = gs.calc_cuml_stats(sample_dfm2, ["id", "season"], ["stat1"], "test_attr")
+    result = ts.calc_cuml_stats(sample_dfm2, ["id", "season"], ["stat1"], "test_attr")
     expected = {
         "id": [1, 1, 1, 1, 1, 1],
         "season": [2021, 2021, 2021, 2022, 2022, 2022],
@@ -106,7 +106,7 @@ def test_calc_cuml_stats(sample_dfm2):
 
 
 def test_calc_offset_summary_stats(sample_dfm2):
-    result = gs.calc_offset_summary_stats(sample_dfm2, ["id", "season"], ["stat1"], "test_attr")
+    result = ts.calc_offset_summary_stats(sample_dfm2, ["id", "season"], ["stat1"], "test_attr")
     expected = {
         "id": [1, 1, 1, 1, 1, 1],
         "season": [2021, 2021, 2021, 2022, 2022, 2022],
@@ -127,3 +127,45 @@ def test_calc_offset_summary_stats(sample_dfm2):
         },
     )
     assert_frame_equal(result.dataframe, expected_df)
+
+def test_add_stats():
+    # Mock base DataFrameManager
+    base_df = pl.DataFrame({
+        "id": [1, 2, 3],
+        "season": [2021, 2021, 2021],
+        "team": ["A", "B", "C"]
+    })
+    base_dm = DataFrameManager(base_df, primary_key=["id"], dimensions=["id","season","team"])
+
+    # Mock stats DataFrameManager
+    stats_df = pl.DataFrame({
+        "id": [1, 2, 4, 1],
+        "season": [2021, 2021, 2021, 2020],
+        "team": ["A", "B", "C", "A"],
+        "stat": [10, 20, 30, 40]
+    })
+    stats_dm = DataFrameManager(stats_df, primary_key=["id", "season"], dimensions=["id","season","team"])
+
+    # Test without prev_ssn
+    result_dm = ts.add_stats(base_dm, stats_dm)
+    expected_df = pl.DataFrame({
+        "id": [1, 2, 3],
+        "season": [2021, 2021, 2021],
+        "team": ["A", "B", "C"],
+        "stat": [10, 20, None]
+    })
+    assert_frame_equal(result_dm.dataframe,expected_df)
+
+    # Test with prev_ssn
+    result_dm_prev_ssn = ts.add_stats(base_dm, stats_dm, prev_ssn=True)
+    expected_df_prev_ssn = pl.DataFrame({
+        "id": [1, 2, 3],
+        "season": [2021, 2021, 2021],
+        "team": ["A", "B", "C"],
+        "stat": [40, None, None]  # Stats shouldn't match due to season adjustment
+    })
+    assert_frame_equal(result_dm_prev_ssn.dataframe,expected_df_prev_ssn)
+
+
+
+

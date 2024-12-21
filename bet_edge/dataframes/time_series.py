@@ -34,7 +34,7 @@ def genr_agg_dfm(dfm: DataFrameManager, group_cols: List[str], sum_cols: List[st
         .sort(group_cols)
         .collect()
     )
-    dfm = DataFrameManager(agg_df, group_cols)
+    dfm = DataFrameManager(agg_df, primary_key=group_cols, dimensions=group_cols)
     return dfm
 
 
@@ -65,12 +65,12 @@ def calc_summary_stats(
     Returns:
         DataFrameManager: A DataFrameManager containing summary statistics.
     """
-    df = dfm.dataframe.group_by(group_cols).agg(
+    df = dfm.dataframe.lazy().group_by(group_cols).agg(
         [pl.mean(f"{col}").alias(_format_col_name(attr, affix, col, "mean")) for col in cols]
         + [pl.std(f"{col}").alias(_format_col_name(attr, affix, col, "std")) for col in cols]
         + [pl.count(f"{cols[0]}").alias(_format_col_name(attr, affix, "count", "n"))]
-    )
-    return DataFrameManager(df, group_cols)
+    ).collect()
+    return DataFrameManager(df, primary_key=group_cols, dimensions=group_cols)
 
 
 def calc_cuml_stats(
@@ -99,7 +99,7 @@ def calc_cuml_stats(
         + ["cuml_n"]
     )
     agg = (
-        dfm.dataframe.group_by(group_cols)
+        dfm.dataframe.lazy().group_by(group_cols)
         .agg(
             [pl.col(col) for col in dropped_cols]
             + [(pl.col(col).cum_sum() / pl.col(col).cum_count()).alias(f"cuml_mean_{col}") for col in cols]
@@ -108,9 +108,9 @@ def calc_cuml_stats(
             + [pl.col(cols[0]).cum_count().alias("cuml_n")]
         )
         .explode(explode_cols)
-    ).sort(group_cols)
+    ).sort(group_cols).collect()
 
-    stats = agg.select(
+    stats = agg.lazy().select(
         dfm.primary_key
         + [pl.col(f"cuml_mean_{col}").alias(_format_col_name(attr, affix, col, "cuml_mean")) for col in cols]
         + [
@@ -124,9 +124,9 @@ def calc_cuml_stats(
             for col in cols
         ]
         + [pl.col("cuml_n").alias(_format_col_name(attr, affix, "count", "cuml_n"))]
-    )
+    ).collect()
 
-    return DataFrameManager(stats, dfm.primary_key)
+    return DataFrameManager(stats, primary_key=dfm.primary_key, dimensions=dfm.primary_key)
 
 
 def calc_shifted_dfm(dfm: DataFrameManager, group_cols: List[str], cols: List[str], n: int = 1) -> DataFrameManager:
@@ -145,7 +145,7 @@ def calc_shifted_dfm(dfm: DataFrameManager, group_cols: List[str], cols: List[st
     shifted = dfm.dataframe.with_columns(
         [pl.col(col).shift(i).over(group_cols).alias(f"shifted_{col}_{n}") for col in cols for i in range(1, n + 1)]
     )
-    return DataFrameManager(shifted, dfm.primary_key)
+    return DataFrameManager(shifted, primary_key=dfm.primary_key, dimensions=dfm.dimensions)
 
 
 def calc_offset_summary_stats(
@@ -194,14 +194,16 @@ def add_stats(base: DataFrameManager, stats: DataFrameManager, prev_ssn: bool = 
     """
     if prev_ssn:
         stats = DataFrameManager(
-            stats.dataframe.with_columns((pl.col("season") + 1).alias("season")), stats.primary_key
+            stats.dataframe.with_columns((pl.col("season") + 1).alias("season")), 
+            primary_key=stats.primary_key,
+            dimensions=stats.dimensions,
         )
     foreign_key = base.get_foreign_key(stats)
     stats_cols = base.get_col_diff(stats)
     new_df = base.dataframe.join(stats.dataframe, on=foreign_key, how="left").select(
         base.dataframe.columns + stats_cols
     )
-    new = DataFrameManager(new_df, base.primary_key)
+    new = DataFrameManager(new_df, primary_key=base.primary_key, dimensions=base.dimensions)
     new.assert_valid_pk()
     return new
 
@@ -229,7 +231,7 @@ def fill_null_curr_season_stats(dfm: DataFrameManager, cols: List[str], attr: st
         ]
     )
 
-    coal = DataFrameManager(df, dfm.primary_key)
+    coal = DataFrameManager(df, primary_key=dfm.primary_key, dimensions=dfm.dimensions)
     return coal
 
 
@@ -255,7 +257,7 @@ def add_rolling_stats(
     """
     df = dfm.dataframe.sort(dfm.primary_key)
     for col in cols:
-        df = df.with_columns(
+        df = df.lazy().with_columns(
             [
                 pl.col(col)
                 .shift(1)
@@ -268,8 +270,8 @@ def add_rolling_stats(
                 .over(over_cols)
                 .alias(_format_col_name(attr, f"rolling_{window}", col, "std")),
             ]
-        )
-    return DataFrameManager(df, dfm.primary_key)
+        ).collect()
+    return DataFrameManager(df, primary_key=dfm.primary_key, dimensions=dfm.dimensions)
 
 
 def calc_grouped_rolling_stats(
@@ -301,12 +303,12 @@ def calc_grouped_rolling_stats(
     except KeyError:
         dfm = add_rolling_stats(dfm, over_cols, cols, attr, window)
 
-    grouped = dfm.dataframe.group_by(group_cols).agg(
+    grouped = dfm.dataframe.lazy().group_by(group_cols).agg(
         [pl.mean(mean_col).alias("group_" + mean_col) for mean_col in attr_means]
         + [
             (pl.col(std_col) ** 2 / pl.col(std_col).count()).mean().sqrt().alias("group_" + std_col)
             for std_col in attr_stds
         ]
-    )
-    grouped_dfm = DataFrameManager(grouped, group_cols)
+    ).collect()
+    grouped_dfm = DataFrameManager(grouped, primary_key=group_cols, dimensions=group_cols)
     return grouped_dfm

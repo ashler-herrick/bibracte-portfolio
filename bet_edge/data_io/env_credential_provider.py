@@ -25,13 +25,19 @@ class EnvironmentCredentialProvider(ICredentialProvider):
     """
 
     ENV_VARS = {
+        #aws
         "aws_access_key_id": "AWS_ACCESS_KEY_ID",
         "aws_secret_access_key": "AWS_SECRET_ACCESS_KEY",
         "aws_session_token": "AWS_SESSION_TOKEN",
         "aws_default_region": "AWS_DEFAULT_REGION",
+        #odds api
         "odds_api_key": "ODDS_API_KEY",
-        # To add new credentials, include them here in the format:
-        # "attribute_name": "ENVIRONMENT_VARIABLE_NAME"
+        #pg creds
+        "postgres_host": "POSTGRES_HOST",
+        "postgres_port": "POSTGRES_PORT",
+        "postgres_db": "POSTGRES_DB",
+        "postgres_user": "POSTGRES_USER",
+        "postgres_password": "POSTGRES_PASSWORD",
     }
 
     def __init__(self, env_path=None):
