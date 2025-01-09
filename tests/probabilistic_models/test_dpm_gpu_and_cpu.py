@@ -3,6 +3,7 @@ import torch
 import numpy as np
 from bet_edge.probabilistic_models.models.normal_mixture import DeepNormalMixture
 from torch.optim import Adam
+from torch.utils.data import TensorDataset
 
 
 @pytest.fixture
@@ -44,7 +45,16 @@ def test_model_runs_on_cpu(cpu_model):
     X_test = np.random.randn(200, 1)
     y_test = np.random.randn(200)
 
-    cpu_model.fit((X_train, X_test), (y_train, y_test), epochs=5, early_stopping=False)
+    train_dataset = TensorDataset(
+        torch.tensor(X_train, dtype=torch.float32),
+        torch.tensor(y_train, dtype=torch.float32),
+    )
+    val_dataset = TensorDataset(
+        torch.tensor(X_test, dtype=torch.float32),
+        torch.tensor(y_test, dtype=torch.float32),
+    )
+
+    cpu_model.fit(train_dataset, val_dataset, epochs=5, early_stopping=False)
     preds = cpu_model.predict(X_test)
     assert preds.shape[0] == X_test.shape[0]
 
@@ -57,7 +67,16 @@ def test_model_runs_on_gpu(gpu_model):
     X_test = np.random.randn(200, 1)
     y_test = np.random.randn(200)
 
-    gpu_model.fit((X_train, X_test), (y_train, y_test), epochs=5, early_stopping=False)
+    train_dataset = TensorDataset(
+        torch.tensor(X_train, dtype=torch.float32),
+        torch.tensor(y_train, dtype=torch.float32),
+    )
+    val_dataset = TensorDataset(
+        torch.tensor(X_test, dtype=torch.float32),
+        torch.tensor(y_test, dtype=torch.float32),
+    )
+
+    gpu_model.fit(train_dataset, val_dataset, epochs=5, early_stopping=False)
     preds = gpu_model.predict(X_test)
     assert preds.shape[0] == X_test.shape[0]
     # Check if the model is on GPU

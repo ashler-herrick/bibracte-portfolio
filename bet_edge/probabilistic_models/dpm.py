@@ -1,22 +1,11 @@
-"""
-DPM: Deep Probabilistic Models
-
-This module provides a template class for constructing probabilistic neural networks using PyTorch.
-The `DeepProbabilisticModel` class is an abstract base class designed for training and evaluating
-probabilistic models with support for customizable optimizers, early stopping, and CUDA compatibility.
-
-Classes:
-    DeepProbabilisticModel: Template class for probabilistic neural networks.
-"""
-
 import torch
 import random
 import numpy as np
 import logging
-from torch.utils.data import TensorDataset, DataLoader
+from torch.utils.data import DataLoader, Dataset
 from torch.optim.optimizer import Optimizer
 from abc import ABC, abstractmethod
-from typing import Tuple, Union, Callable, Sized
+from typing import Optional, Callable, List
 
 logger = logging.getLogger(__name__)
 
@@ -24,10 +13,8 @@ logger = logging.getLogger(__name__)
 class DeepProbabilisticModel(torch.nn.Module, ABC):
     """
     Abstract base class serving as a template for constructing probabilistic neural networks.
-
-    This class serves as a template for implementing probabilistic neural networks
-    with a defined negative log-likelihood loss, training, validation, early stopping,
-    and prediction functionalities.
+    This class supports training and evaluating probabilistic models, with customizable
+    optimizers, early stopping, and CUDA compatibility.
     """
 
     def __init__(
@@ -54,18 +41,15 @@ class DeepProbabilisticModel(torch.nn.Module, ABC):
         self.batch_size = batch_size
         self.train_loss_arr = []
         self.val_loss_arr = []
-        self.best_val_loss = 0
+        self.best_val_loss = np.inf
         self.best_val_iter = 0
         self.patience_counter = 0
+        self.best_model_state = None
 
         self.device = torch.device("cuda" if torch.cuda.is_available() and use_cuda else "cpu")
+        self.to(self.device)
         self.set_seed(seed)
         logger.info(f"Initialized model on device: {self.device}")
-
-        # Log device of all parameters
-        for name, param in self.named_parameters():
-            assert param.device == self.device, f"Parameter {name} is on {param.device}, expected {self.device}"
-            logger.debug(f"Parameter '{name}' is on device: {param.device}")
 
     def set_seed(self, seed: int = 42):
         """
@@ -95,234 +79,239 @@ class DeepProbabilisticModel(torch.nn.Module, ABC):
         negloglik = -y_hat.log_prob(y)
         return torch.mean(negloglik)
 
-    def _train_iter(self, X: torch.Tensor, y: torch.Tensor) -> float:
-        """
-        Performs a single training iteration on a batch.
-
-        Args:
-            X (torch.Tensor): Input features.
-            y (torch.Tensor): Target values.
-
-        Returns:
-            float: Loss value for the batch.
-        """
-        y_hat = self(X)
-        loss = self._nll(y_hat, y)
-
-        self.optimizer.zero_grad()
-        loss.backward()
-        self.optimizer.step()
-
-        logger.debug(f"Training iteration loss: {loss.item()}")
-        return loss.item()
-
-    def _val_iter(self, X: torch.Tensor, y: torch.Tensor) -> float:
-        """
-        Performs a single validation iteration on a batch.
-
-        Args:
-            X (torch.Tensor): Input features.
-            y (torch.Tensor): Target values.
-
-        Returns:
-            float: Validation loss for the batch.
-        """
-        with torch.no_grad():
-            y_hat = self(X)
-            val_loss = self._nll(y_hat, y).item()
-        logger.debug(f"Validation iteration loss: {val_loss}")
-        return val_loss
-
-    def _batch_train(self, dl_train: DataLoader) -> float:
-        """
-        Trains the model over all batches in the training DataLoader.
-
-        Args:
-            dl_train (DataLoader): DataLoader for training data.
-
-        Returns:
-            float: Average training loss over all batches.
-        """
-        total_loss = 0.0
-        self.train()
-        logger.info("Starting training batch loop.")
-        for batch_idx, (X, y) in enumerate(dl_train):
-            # Move data to device once per batch
-            X = X.to(self.device, non_blocking=True)
-            y = y.to(self.device, non_blocking=True)
-
-            loss = self._train_iter(X, y)
-            total_loss += loss
-            if batch_idx % 100 == 0:
-                logger.debug(f"Batch {batch_idx}: Loss = {loss}")
-        average_loss = total_loss / len(dl_train)
-        logger.info(f"Average training loss: {average_loss}")
-        return average_loss
-
-    def _batch_val(self, dl_test: DataLoader) -> float:
-        """
-        Validates the model over all batches in the validation DataLoader.
-
-        Args:
-            dl_test (DataLoader): DataLoader for validation data.
-
-        Returns:
-            float: Average validation loss over all batches.
-        """
-        if not isinstance(dl_test.dataset, Sized):
-            raise TypeError("The dataset in DataLoader must implement the Sized protocol.")
-
-        self.eval()
-        size = len(dl_test.dataset)
-        val_loss = 0.0
-        logger.info("Starting validation batch loop.")
-        with torch.no_grad():
-            for X, y in dl_test:
-                X = X.to(self.device, non_blocking=True)
-                y = y.to(self.device, non_blocking=True)
-
-                _test_loss = self._val_iter(X, y)
-                val_loss += _test_loss * len(X)
-        val_loss /= size
-        logger.info(f"Average validation loss: {val_loss}")
-        return val_loss
-
-    def _early_stopping(self, patience: int) -> bool:
-        """
-        Checks whether early stopping criteria have been met.
-
-        Args:
-            patience (int): Number of epochs to wait for improvement.
-
-        Returns:
-            bool: True if training should stop, False otherwise.
-        """
-        current_best_val_loss = np.min(self.val_loss_arr)
-        self.best_val_loss = current_best_val_loss
-        self.best_val_iter = int(np.argmin(self.val_loss_arr))
-
-        if len(self.val_loss_arr) > 1 and self.val_loss_arr[-1] > self.best_val_loss:
-            self.patience_counter += 1
-            logger.debug(f"Patience counter increased to {self.patience_counter}")
-        else:
-            self.patience_counter = 0
-            self.best_model_state = self.state_dict()
-            logger.debug("Best model updated and patience counter reset.")
-
-        if self.patience_counter >= patience:
-            logger.info(f"Early stopping triggered after {self.patience_counter} epochs without improvement.")
-            return True
-
-        return False
-
     def fit(
         self,
-        X: Tuple[np.ndarray, np.ndarray],
-        y: Tuple[np.ndarray, np.ndarray],
+        train_dataset: Dataset,
+        val_dataset: Optional[Dataset] = None,
         epochs: int = 100,
         early_stopping: bool = False,
         patience: int = 10,
     ) -> None:
         """
-        Trains the model using the provided training and validation data.
+        Trains the model using the provided training and validation datasets.
 
         Args:
-            X (Tuple[np.ndarray, np.ndarray]): Tuple containing training and validation feature arrays.
-            y (Tuple[np.ndarray, np.ndarray]): Tuple containing training and validation target arrays.
+            train_dataset (Dataset): The training dataset.
+            val_dataset (Optional[Dataset]): The validation dataset. Defaults to None.
             epochs (int, optional): Number of training epochs. Defaults to 100.
             early_stopping (bool, optional): Whether to use early stopping. Defaults to False.
             patience (int, optional): Patience for early stopping. Defaults to 10.
         """
         self.train()
         self.patience_counter = 0
+        self.best_val_loss = np.inf
+        self.best_val_iter = 0
+        self.best_model_state = None
+
+        # Initialize the optimizer
         self.optimizer = self.optimizer_class(self.parameters(), lr=self.learning_rate)
-        X_train, X_test = X
-        y_train, y_test = y
 
-        # Convert to CPU tensors here, no extra dimension insertion
-        X_train_tensor = torch.tensor(X_train, dtype=torch.float32)
-        y_train_tensor = torch.tensor(y_train, dtype=torch.float32)
-
-        X_test_tensor = torch.tensor(X_test, dtype=torch.float32)
-        y_test_tensor = torch.tensor(y_test, dtype=torch.float32)
-
-        # CPU datasets
-        td_train = TensorDataset(X_train_tensor, y_train_tensor)
-        td_test = TensorDataset(X_test_tensor, y_test_tensor)
-
-        # Enable pin_memory if on GPU
+        # Create DataLoaders
         dl_train = DataLoader(
-            td_train,
+            train_dataset,
             batch_size=self.batch_size,
             shuffle=True,
-            pin_memory=True,
-        )
-        dl_test = DataLoader(
-            td_test,
-            batch_size=self.batch_size,
-            shuffle=False,
-            pin_memory=True,
+            pin_memory=self.device.type == "cuda",
         )
 
+        dl_val = None
+        if val_dataset is not None:
+            dl_val = DataLoader(
+                val_dataset,
+                batch_size=self.batch_size,
+                shuffle=False,
+                pin_memory=self.device.type == "cuda",
+            )
+
         logger.info(f"Starting training for {epochs} epochs.")
-        for t in range(epochs):
-            logger.debug(f"Epoch {t+1}/{epochs} started.")
-            train_loss = self._batch_train(dl_train)
-            val_loss = self._batch_val(dl_test)
+        for epoch in range(1, epochs + 1):
+            logger.debug(f"Epoch {epoch}/{epochs} started.")
+            train_loss = self._train_epoch(dl_train)
+            if dl_val is not None:
+                val_loss = self._validate_epoch(dl_val)
+            else:
+                val_loss = float('nan')
+
             self.train_loss_arr.append(train_loss)
             self.val_loss_arr.append(val_loss)
 
-            if t % 25 == 0:
-                logger.info(f"Epoch {t+1}/{epochs} -> Train Loss: {train_loss:.6f}, Validation Loss: {val_loss:.6f}")
+            logger.info(
+                f"Epoch {epoch}/{epochs} -> "
+                f"Train Loss: {train_loss:.6f}, "
+                f"Validation Loss: {val_loss:.6f}"
+            )
 
-            if early_stopping:
-                early_stop = self._early_stopping(patience)
-                if early_stop:
-                    logger.info(f"Early stopping after {t+1} epochs.")
-                    self.load_state_dict(self.best_model_state)
-                    logger.info(f"Best Model: Epoch {self.best_val_iter + 1}, Loss: {self.best_val_loss:.6f}")
+            if early_stopping and dl_val is not None:
+                if self._check_early_stopping(val_loss, patience):
+                    logger.info(f"Early stopping triggered at epoch {epoch}.")
+                    if self.best_model_state is not None:
+                        self.load_state_dict(self.best_model_state)
+                        logger.info(
+                            f"Loaded best model from epoch {self.best_val_iter} with "
+                            f"Validation Loss: {self.best_val_loss:.6f}"
+                        )
                     break
 
         logger.info("Training completed.")
 
-    def pred_dist(self, x: Union[np.ndarray, torch.Tensor]) -> torch.distributions.Distribution:
+    def _train_epoch(self, dl_train: DataLoader) -> float:
         """
-        Predicts the distribution for the given input data.
+        Performs one full training epoch.
 
         Args:
-            x (Union[np.ndarray, torch.Tensor]): Input features.
+            dl_train (DataLoader): DataLoader for training data.
 
         Returns:
-            torch.distributions.Distribution: Predicted distribution.
+            float: Average training loss for the epoch.
         """
-        self.eval()
-        with torch.no_grad():
-            if isinstance(x, np.ndarray):
-                x = torch.tensor(x, dtype=torch.float32)
-            x = x.to(self.device)
-            y_hat = self(x)
-        logger.debug("Predicted distribution for input data.")
-        return y_hat
+        self.train()
+        total_loss = 0.0
+        for batch_idx, (X, y) in enumerate(dl_train, 1):
+            X = X.to(self.device, non_blocking=True)
+            y = y.to(self.device, non_blocking=True)
 
-    def predict(self, x: Union[np.ndarray, torch.Tensor]) -> np.ndarray:
+            y_hat = self(X)
+            loss = self._nll(y_hat, y)
+
+            self.optimizer.zero_grad()
+            loss.backward()
+            self.optimizer.step()
+
+            total_loss += loss.item()
+
+            if batch_idx % 100 == 0:
+                logger.debug(f"Batch {batch_idx}: Loss = {loss.item()}")
+
+        average_loss = total_loss / len(dl_train)
+        logger.debug(f"Epoch Training Loss: {average_loss}")
+        return average_loss
+
+    def _validate_epoch(self, dl_val: DataLoader) -> float:
         """
-        Predicts the mean of the distribution for the given input data.
+        Performs one full validation epoch.
 
         Args:
-            x (Union[np.ndarray, torch.Tensor]): Input features.
+            dl_val (DataLoader): DataLoader for validation data.
 
         Returns:
-            np.ndarray: Predicted mean values.
+            float: Average validation loss for the epoch.
         """
         self.eval()
+        total_loss = 0.0
+        total_samples = 0
         with torch.no_grad():
-            if isinstance(x, np.ndarray):
-                x = torch.tensor(x, dtype=torch.float32)
-            x = x.to(self.device)
-            y_hat = self(x)
-        preds = y_hat.mean.cpu().numpy()
-        logger.debug("Computed mean predictions for input data.")
-        return preds
+            for X, y in dl_val:
+                X = X.to(self.device, non_blocking=True)
+                y = y.to(self.device, non_blocking=True)
+
+                y_hat = self(X)
+                loss = self._nll(y_hat, y)
+
+                batch_size = X.size(0)
+                total_loss += loss.item() * batch_size
+                total_samples += batch_size
+
+        average_loss = total_loss / total_samples
+        logger.debug(f"Epoch Validation Loss: {average_loss}")
+        return average_loss
+
+    def _check_early_stopping(self, current_val_loss: float, patience: int) -> bool:
+        """
+        Checks if early stopping criteria have been met.
+
+        Args:
+            current_val_loss (float): Current epoch's validation loss.
+            patience (int): Number of epochs to wait for improvement.
+
+        Returns:
+            bool: True if training should stop, False otherwise.
+        """
+        if current_val_loss < self.best_val_loss:
+            self.best_val_loss = current_val_loss
+            self.best_val_iter = len(self.val_loss_arr) - 1
+            self.patience_counter = 0
+            self.best_model_state = self.state_dict()
+            logger.debug("Validation loss improved. Resetting patience counter.")
+        else:
+            self.patience_counter += 1
+            logger.debug(f"No improvement in validation loss. Patience counter: {self.patience_counter}")
+
+        return self.patience_counter >= patience
+
+    def pred_dist(self, dataset: Dataset) -> torch.distributions.Distribution:
+        """
+        Predicts the distribution for each data point in the dataset and aggregates them into a single distribution.
+
+        Args:
+            dataset (Dataset): Input dataset for which to predict distributions.
+
+        Returns:
+            torch.distributions.Distribution: Aggregated distribution representing all data points.
+        """
+        dl = DataLoader(
+            dataset,
+            batch_size=self.batch_size,
+            shuffle=False,
+            pin_memory=self.device.type == "cuda",
+        )
+        self.eval()
+        all_logits = []
+        all_means = []
+        all_scales = []
+        logger.info("Starting prediction distribution batch loop.")
+        with torch.no_grad():
+            for X, _ in dl:
+                X = X.to(self.device, non_blocking=True)
+                y_hat = self(X)  # MixtureSameFamily distribution
+                # Extract logits, means, scales
+                logits = y_hat.mixture_distribution.logits  # [batch_size, n_dist]
+                means = y_hat.component_distribution.mean  # [batch_size, n_dist]
+                scales = y_hat.component_distribution.stddev  # [batch_size, n_dist]
+                all_logits.append(logits.cpu())
+                all_means.append(means.cpu())
+                all_scales.append(scales.cpu())
+
+        # Concatenate across all batches
+        concatenated_logits = torch.cat(all_logits, dim=0)  # [num_samples, n_dist]
+        concatenated_means = torch.cat(all_means, dim=0)    # [num_samples, n_dist]
+        concatenated_scales = torch.cat(all_scales, dim=0)  # [num_samples, n_dist]
+
+        # Create new mixture distribution
+        mixture_distribution = torch.distributions.Categorical(logits=concatenated_logits)
+        component_distribution = torch.distributions.Normal(loc=concatenated_means, scale=concatenated_scales)
+        aggregated_distribution = torch.distributions.MixtureSameFamily(mixture_distribution, component_distribution)
+
+        logger.debug("Completed prediction distribution aggregation.")
+        return aggregated_distribution
+
+    def predict(self, dataset: Dataset) -> np.ndarray:
+        """
+        Predicts the point estimate (e.g., mean) for each data point in the dataset.
+
+        Args:
+            dataset (Dataset): Input dataset for which to predict point estimates.
+
+        Returns:
+            np.ndarray: Predicted point estimates.
+        """
+        dl = DataLoader(
+            dataset,
+            batch_size=self.batch_size,
+            shuffle=False,
+            pin_memory=self.device.type == "cuda",
+        )
+        self.eval()
+        preds_list = []
+        logger.info("Starting prediction batch loop.")
+        with torch.no_grad():
+            for X, _ in dl:
+                X = X.to(self.device, non_blocking=True)
+                y_hat = self(X)
+                preds = y_hat.mean.cpu().numpy()
+                preds_list.append(preds)
+        ensemble_preds = np.concatenate(preds_list, axis=0)
+        logger.debug("Completed point predictions.")
+        return ensemble_preds
 
     @abstractmethod
     def forward(self, x: torch.Tensor) -> torch.distributions.Distribution:

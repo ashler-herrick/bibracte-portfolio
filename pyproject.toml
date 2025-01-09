@@ -18,6 +18,7 @@ dependencies = [
     "pyyaml>=6.0.2",
     "nfl-data-py>=0.3.3",
     "psycopg2-binary>=2.9.10",
+    "databento>=0.47.0",
 ]
 
 [tool.uv.sources]

@@ -1,11 +1,13 @@
-import logging
+# tests/test_deep_normal_mixture_efficiency.py
 
+import logging
 import pytest
 import torch
 import numpy as np
-from bet_edge.probabilistic_models.models.normal_mixture import DeepNormalMixture
 from torch.optim import Adam
+from torch.utils.data import TensorDataset
 
+from bet_edge.probabilistic_models.models.normal_mixture import DeepNormalMixture
 
 # Configure logger for the test module
 logger = logging.getLogger(__name__)
@@ -22,11 +24,11 @@ TEST_SIZE = 50000
 BATCH_SIZE = 64
 
 # Generate synthetic training and testing data
+np.random.seed(42)
 X_train = np.random.randn(TRAIN_SIZE, N_DIMS).astype(np.float32)
 y_train = np.random.randn(TRAIN_SIZE).astype(np.float32)
 X_test = np.random.randn(TEST_SIZE, N_DIMS).astype(np.float32)
 y_test = np.random.randn(TEST_SIZE).astype(np.float32)
-
 
 @pytest.fixture
 def cpu_model():
@@ -41,7 +43,6 @@ def cpu_model():
         batch_size=BATCH_SIZE,
     )
     return model
-
 
 @pytest.fixture
 def gpu_model():
@@ -60,28 +61,56 @@ def gpu_model():
     else:
         pytest.skip("No GPU available for testing")
 
-
 def test_cpu_efficiency(cpu_model, benchmark):
     """
     Benchmark the training efficiency of the CPU model.
     """
 
+    # Create TensorDatasets
+    train_dataset = TensorDataset(
+        torch.tensor(X_train, dtype=torch.float32),
+        torch.tensor(y_train, dtype=torch.float32),
+    )
+    val_dataset = TensorDataset(
+        torch.tensor(X_test, dtype=torch.float32),
+        torch.tensor(y_test, dtype=torch.float32),
+    )
+
     # Benchmark CPU training
     benchmark.pedantic(
-        lambda: cpu_model.fit((X_train, X_test), (y_train, y_test), epochs=5, early_stopping=False),
+        lambda: cpu_model.fit(
+            train_data=train_dataset,
+            val_data=val_dataset,
+            epochs=5,
+            early_stopping=False
+        ),
         iterations=1,
         rounds=1,
     )
-
 
 def test_gpu_efficiency(gpu_model, benchmark):
     """
     Benchmark the training efficiency of the GPU model.
     """
 
+    # Create TensorDatasets
+    train_dataset = TensorDataset(
+        torch.tensor(X_train, dtype=torch.float32),
+        torch.tensor(y_train, dtype=torch.float32),
+    )
+    val_dataset = TensorDataset(
+        torch.tensor(X_test, dtype=torch.float32),
+        torch.tensor(y_test, dtype=torch.float32),
+    )
+
     # Benchmark GPU training
     benchmark.pedantic(
-        lambda: gpu_model.fit((X_train, X_test), (y_train, y_test), epochs=5, early_stopping=False),
+        lambda: gpu_model.fit(
+            train_data=train_dataset,
+            val_data=val_dataset,
+            epochs=5,
+            early_stopping=False
+        ),
         iterations=1,
         rounds=1,
     )

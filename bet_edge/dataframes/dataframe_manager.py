@@ -59,6 +59,8 @@ class DataFrameManager:
         self.primary_key = primary_key
         self.dimensions = dimensions
         self.measures = measures
+        if not measures:
+            self.measures = sym_diff(dataframe.columns, dimensions)
 
     @property
     def dataframe(self) -> pl.DataFrame:

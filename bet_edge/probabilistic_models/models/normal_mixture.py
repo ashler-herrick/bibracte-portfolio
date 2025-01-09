@@ -22,11 +22,12 @@ class DeepNormalMixture(DeepProbabilisticModel):
         self,
         n_inputs: int,
         n_hidden: int,
-        optimizer_class: Callable[..., Optimizer],
-        learning_rate: float = 1e-4,
-        p_dropout: float = 0.5,
-        n_dist: int = 5,
+        n_dist: int = 3,
+        p_dropout: float = 0.1,
+        optimizer_class: Callable[..., Optimizer] = torch.optim.Adam,
+        learning_rate: float = 1e-3,
         batch_size: int = 64,
+        seed: int = 42,
         use_cuda: bool = False,
     ):
         """
@@ -34,22 +35,24 @@ class DeepNormalMixture(DeepProbabilisticModel):
 
         Args:
             n_inputs (int): Number of input features.
-            n_hidden (int): Number of hidden units per layer.
-            optimizer_class (Callable): Optimizer class from torch.optim.
-            learning_rate (float, optional): Learning rate for the optimizer. Defaults to 1e-4.
-            p_dropout (float, optional): Dropout probability. Defaults to 0.5.
-            n_dist (int, optional): Number of mixture components. Defaults to 5.
+            n_hidden (int): Number of network units.
+            n_dist (int, optional): Number of mixture components. Defaults to 3.
+            p_dropout (float, optional): Dropout probability. Defaults to 0.1.
+            optimizer_class (Callable, optional): Optimizer class. Defaults to torch.optim.Adam.
+            learning_rate (float, optional): Learning rate for the optimizer. Defaults to 1e-3.
             batch_size (int, optional): Batch size for training. Defaults to 64.
+            seed (int, optional): Random seed for reproducibility. Defaults to 42.
             use_cuda (bool, optional): Whether to use CUDA if available. Defaults to False.
         """
         super().__init__(
+            optimizer_class=optimizer_class,
             learning_rate=learning_rate,
             batch_size=batch_size,
-            optimizer_class=optimizer_class,
+            seed=seed,
             use_cuda=use_cuda,
         )
-
-        self.hidden = torch.nn.Sequential(
+        self.n_dist = n_dist
+        self.network = torch.nn.Sequential(
             torch.nn.Linear(n_inputs, n_hidden),
             torch.nn.Dropout(p_dropout),
             torch.nn.Linear(n_hidden, n_hidden),
@@ -74,7 +77,7 @@ class DeepNormalMixture(DeepProbabilisticModel):
         Returns:
             torch.distributions.MixtureSameFamily: Output mixture distribution.
         """
-        outputs = self.hidden(x)
+        outputs = self.network(x)
         outputs = torch.tanh(outputs)
 
         mean = self.mean_linear(outputs)

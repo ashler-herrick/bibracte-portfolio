@@ -4,6 +4,7 @@ import pytest
 import torch
 import numpy as np
 from torch.optim import Adam
+from torch.utils.data import TensorDataset
 
 from bet_edge.probabilistic_models.models.normal_mixture import DeepNormalMixture
 from bet_edge.probabilistic_models.kfold_dpm import KFoldDPM
@@ -24,10 +25,10 @@ def base_model():
     return DeepNormalMixture(
         n_inputs=10,
         n_hidden=20,
+        n_dist=3,
+        p_dropout=0.1,
         optimizer_class=Adam,
         learning_rate=1e-3,
-        p_dropout=0.1,
-        n_dist=3,
         batch_size=16,
         use_cuda=False,
     )
@@ -43,16 +44,22 @@ def test_kfold_initialization(kfold_dpm):
     """Test if KFoldDPM initializes correctly."""
     assert kfold_dpm.torch_dpm is not None, "Base model not assigned."
     assert isinstance(kfold_dpm.models, list), "Models list not initialized."
-    assert kfold_dpm.fold_nll == [], "fold_nll should be empty initially."
     assert kfold_dpm.fold_mae == [], "fold_mae should be empty initially."
+    assert kfold_dpm.fold_nll == [], "fold_nll should be empty initially."
 
 
 def test_train_kfold(kfold_dpm, synthetic_data):
     """Test the k-fold training process."""
     X, y = synthetic_data
+
+    # Create a single TensorDataset
+    full_dataset = TensorDataset(
+        torch.tensor(X, dtype=torch.float32),
+        torch.tensor(y, dtype=torch.float32),
+    )
+
     kfold_dpm.train_kfold(
-        X=X,
-        y=y,
+        dataset=full_dataset,
         n_splits=5,
         epochs=10,
         patience=5,
@@ -67,14 +74,20 @@ def test_train_kfold(kfold_dpm, synthetic_data):
 def test_kfold_predict(kfold_dpm, synthetic_data):
     """Test prediction after k-fold training."""
     X, y = synthetic_data
+
+    # Create a single TensorDataset
+    full_dataset = TensorDataset(
+        torch.tensor(X, dtype=torch.float32),
+        torch.tensor(y, dtype=torch.float32),
+    )
+
     kfold_dpm.train_kfold(
-        X=X,
-        y=y,
+        dataset=full_dataset,
         n_splits=5,
         epochs=10,
         patience=5,
     )
-    preds = kfold_dpm.predict(X)
+    preds = kfold_dpm.predict(full_dataset)
     assert preds.shape == y.shape, "Predicted shape does not match target shape."
     assert isinstance(preds, np.ndarray), "Predictions are not a NumPy array."
 
@@ -82,12 +95,21 @@ def test_kfold_predict(kfold_dpm, synthetic_data):
 def test_kfold_pred_dist(kfold_dpm, synthetic_data):
     """Test distribution prediction after k-fold training."""
     X, y = synthetic_data
+
+    # Create a single TensorDataset
+    full_dataset = TensorDataset(
+        torch.tensor(X, dtype=torch.float32),
+        torch.tensor(y, dtype=torch.float32),
+    )
+
     kfold_dpm.train_kfold(
-        X=X,
-        y=y,
+        dataset=full_dataset,
         n_splits=5,
         epochs=10,
         patience=5,
     )
-    dist = kfold_dpm.pred_dist(X)
-    assert isinstance(dist, torch.distributions.MixtureSameFamily), "Aggregated distribution is incorrect."
+    dists = kfold_dpm.pred_dist(full_dataset)
+    assert isinstance(dists, list), "pred_dist should return a list of distribution lists."
+    assert len(dists) == 5, "Number of distribution lists does not match number of folds."
+    for fold_dists in dists:
+        assert isinstance(fold_dists, torch.distributions.MixtureSameFamily), "Each distribution should be MixtureSameFamily."

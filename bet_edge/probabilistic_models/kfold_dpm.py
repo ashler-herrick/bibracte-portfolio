@@ -1,211 +1,234 @@
-"""
-K-Fold Deep Probabilistic Model Module
-
-This module provides functionality for training and evaluating probabilistic models
-using k-fold cross-validation. The `KFoldDPM` class generalizes a `DeepProbabilisticModel`
-to train across multiple data splits, allowing for robust model evaluation.
-
-Classes:
-    KFoldDPM: Facilitates k-fold cross-validation for probabilistic models.
-
-Functions:
-    _average_tensors: Computes the average of a list of tensors.
-    _average_dist_params: Aggregates distribution parameters across a list of distributions.
-"""
-
 import torch
 import numpy as np
 import logging
 import copy
 from sklearn.model_selection import KFold
 from sklearn.metrics import mean_absolute_error
-from typing import List, Union, cast
+from typing import List
+from torch.utils.data import Subset, Dataset
 
 from bet_edge.probabilistic_models.dpm import DeepProbabilisticModel
-
 
 logger = logging.getLogger(__name__)
 
 
+def gather_features_and_targets(dataset: Dataset):
+    """
+    Helper function to gather all (features, targets) from a dataset into tensors.
+    Useful for metrics like MAE and NLL.
+
+    Args:
+        dataset (Dataset): The dataset to gather from.
+
+    Returns:
+        Tuple[torch.Tensor, torch.Tensor]: Tensors of features and targets.
+    """
+    X_list = []
+    y_list = []
+    for i in range(len(dataset)):
+        X_item, y_item = dataset[i]
+        X_list.append(X_item)
+        y_list.append(y_item)
+    X_tensor = torch.stack(X_list, dim=0)
+    y_tensor = torch.stack(y_list, dim=0)
+    return X_tensor, y_tensor
+
+
 class KFoldDPM:
     """
-    Generalizes a DeepProbabilisticModel to train across k folds using K-Fold Cross-Validation.
-
-    This class handles the training, validation, and aggregation of multiple models
-    trained on different data splits.
+    Manages k-fold cross-validation for DeepProbabilisticModel instances.
+    Trains multiple models (one per fold) and aggregates their predictions.
     """
 
     def __init__(self, torch_dpm: DeepProbabilisticModel):
         """
-        Initializes the KFoldDPM with a given DeepProbabilisticModel.
+        Initializes the KFoldDPM with a base DeepProbabilisticModel.
 
         Args:
-            torch_dpm (DeepProbabilisticModel): The probabilistic model to be trained.
+            torch_dpm (DeepProbabilisticModel): The base model to clone for each fold.
         """
         self.torch_dpm = torch_dpm
         self.models: List[DeepProbabilisticModel] = []
-        self.X: Union[np.ndarray, None] = None
-        self.y: Union[np.ndarray, None] = None
-        self.fold_nll = []
-        self.fold_mae = []
+        self.fold_mae: List[float] = []
+        self.fold_nll: List[float] = []
 
         logger.info("Initialized KFoldDPM for cross-validation.")
 
     def _clone_model(self) -> DeepProbabilisticModel:
         """
-        Creates a deep copy of the original model for each fold.
+        Creates a deep copy of the base model for a new fold.
 
         Returns:
             DeepProbabilisticModel: Cloned model instance.
         """
         cloned_model = copy.deepcopy(self.torch_dpm)
-        logger.debug("Cloned model for new fold.")
+        logger.debug("Cloned model for a new fold.")
         return cloned_model
 
-    def train_kfold(self, X: np.ndarray, y: np.ndarray, n_splits: int = 5, epochs: int = 2000, patience: int = 50):
+    def _compute_nll_for_distributions(
+        self, distributions: List[torch.distributions.Distribution], y_vals: torch.Tensor
+    ) -> float:
         """
-        Trains the DeepProbabilisticModel using k-fold cross-validation.
+        Computes the Negative Log-Likelihood (NLL) for a list of distributions against true targets.
 
         Args:
-            X (np.ndarray): Feature matrix for training and validation.
-            y (np.ndarray): Target vector for training and validation.
-            n_splits (int, optional): Number of folds for K-Fold. Defaults to 5.
-            epochs (int, optional): Maximum number of training epochs per fold. Defaults to 2000.
-            patience (int, optional): Patience for early stopping. Defaults to 50.
+            distributions (List[torch.distributions.Distribution]): Predicted distributions.
+            y_vals (torch.Tensor): True target values.
+
+        Returns:
+            float: Average NLL over the dataset.
         """
-        kf = KFold(n_splits=n_splits, shuffle=True, random_state=42)
-        self.oof_training_preds = np.zeros((y.shape[0]))
+        total_nll = 0.0
+        total_samples = 0
+        for dist_obj in distributions:
+            # Assuming dist_obj is a batched distribution
+            nll = -dist_obj.log_prob(y_vals)
+            total_nll += torch.sum(nll).item()
+            total_samples += y_vals.size(0)
+        average_nll = total_nll / total_samples if total_samples > 0 else float('nan')
+        return average_nll
+
+    def train_kfold(
+        self,
+        dataset: Dataset,
+        n_splits: int = 5,
+        epochs: int = 20,
+        patience: int = 5,
+    ):
+        """
+        Trains the model across k folds using the provided dataset.
+
+        Args:
+            dataset (Dataset): The dataset to perform k-fold cross-validation on.
+            n_splits (int, optional): Number of folds. Defaults to 5.
+            epochs (int, optional): Number of epochs per fold. Defaults to 20.
+            patience (int, optional): Patience for early stopping. Defaults to 5.
+        """
         logger.info(f"Starting k-fold training with {n_splits} splits.")
+        kf = KFold(n_splits=n_splits, shuffle=True, random_state=42)
 
-        for fold, (train_index, test_index) in enumerate(kf.split(X), 1):
-            logger.info(f"Starting Fold {fold}/{n_splits}")
-            X_train, X_test = X[train_index], X[test_index]
-            y_train, y_test = y[train_index], y[test_index]
+        # Reset previous state
+        self.models.clear()
+        self.fold_mae.clear()
+        self.fold_nll.clear()
 
+        indices = np.arange(len(dataset))
+
+        for fold_idx, (train_idx, val_idx) in enumerate(kf.split(indices), start=1):
+            logger.info(f"--- Fold {fold_idx}/{n_splits} ---")
+            train_subset = Subset(dataset, train_idx)
+            val_subset = Subset(dataset, val_idx)
+
+            # Clone the base model
             model = self._clone_model()
+
+            # Train the model on the current fold
             model.fit(
-                X=(X_train, X_test),
-                y=(y_train, y_test),
+                train_dataset=train_subset,
+                val_dataset=val_subset,
                 epochs=epochs,
                 early_stopping=True,
                 patience=patience,
             )
-
-            y_preds = model.predict(X_test)
-            y_dist = model.pred_dist(X_test)
-
-            mae = mean_absolute_error(y_test, y_preds)
-            self.fold_mae.append(mae)
-            nll = model._nll(y_dist, torch.tensor(y_test, dtype=torch.float32)).item()
-            self.fold_nll.append(nll)
-
-            self.oof_training_preds[test_index] = y_preds.squeeze()
             self.models.append(model)
 
-            logger.info(f"Fold {fold} completed: MAE = {mae:.6f}, NLL = {nll:.6f}")
+            # Gather validation data
+            X_val, y_val = gather_features_and_targets(val_subset)
 
-        self.average_nll = np.mean(self.fold_nll)
-        self.average_mae = np.mean(self.fold_mae)
+            # Compute predictions and distributions
+            preds = model.predict(val_subset)  # np.ndarray
+            distributions = model.pred_dist(val_subset)  # torch.distributions.Distribution
 
-        logger.info(f"Average MAE across all folds: {self.average_mae:.6f}")
-        logger.info(f"Average NLL across all folds: {self.average_nll:.6f}")
+            # Compute MAE
+            mae = mean_absolute_error(y_val.cpu().numpy(), preds)
+            self.fold_mae.append(mae)
 
-    def pred_dist(self, x: Union[np.ndarray, torch.Tensor]) -> torch.distributions.Distribution:
+            # Compute NLL
+            nll = self._compute_nll_for_distributions([distributions], y_val)
+            self.fold_nll.append(nll)
+
+            logger.info(f"Fold {fold_idx}: MAE = {mae:.6f}, NLL = {nll:.6f}")
+
+        # Summarize cross-validation results
+        average_mae = np.mean(self.fold_mae) if self.fold_mae else float('nan')
+        average_nll = np.mean(self.fold_nll) if self.fold_nll else float('nan')
+        logger.info(
+            f"K-Fold Completed. Average MAE = {average_mae:.6f}, "
+            f"Average NLL = {average_nll:.6f}"
+        )
+
+    def predict(self, dataset: Dataset) -> np.ndarray:
         """
-        Returns an evenly weighted distribution object across all trained models.
+        Predicts point estimates by averaging predictions across all trained fold models.
 
         Args:
-            x (Union[np.ndarray, torch.Tensor]): Input features.
+            dataset (Dataset): The dataset to make predictions on.
 
         Returns:
-            torch.distributions.Distribution: Aggregated distribution from all models.
+            np.ndarray: Averaged predictions.
         """
-        return self._get_pred_dist(x)
+        if not self.models:
+            raise ValueError("No trained models found. Please train using train_kfold first.")
 
-    def predict(self, x: Union[np.ndarray, torch.Tensor]) -> np.ndarray:
+        all_preds = []
+        logger.info("Starting ensemble prediction across all folds.")
+        for fold_idx, model in enumerate(self.models, start=1):
+            preds = model.predict(dataset)  # np.ndarray
+            all_preds.append(preds)
+            logger.debug(f"Fold {fold_idx}: Collected predictions.")
+
+        # Stack and average
+        all_preds_stack = np.stack(all_preds, axis=0)  # Shape: (n_folds, n_samples)
+        ensemble_preds = np.mean(all_preds_stack, axis=0)  # Shape: (n_samples,)
+        logger.debug("Ensemble predictions computed by averaging across folds.")
+        return ensemble_preds
+
+    def pred_dist(self, dataset: Dataset) -> torch.distributions.Distribution:
         """
-        Returns the mean of an evenly weighted distribution object across all trained models.
+        Aggregates distributions from all trained fold models into a single distribution.
 
         Args:
-            x (Union[np.ndarray, torch.Tensor]): Input features.
+            dataset (Dataset): The dataset to make distribution predictions on.
 
         Returns:
-            np.ndarray: Predicted mean values.
+            torch.distributions.Distribution: Aggregated distribution representing all data points.
         """
-        return self._get_pred_dist(x).mean.cpu().numpy()
+        if not self.models:
+            raise ValueError("No trained models found. Please train using train_kfold first.")
 
-    def _get_pred_dist(self, x: Union[np.ndarray, torch.Tensor]) -> torch.distributions.Distribution:
-        """
-        Internal method for aggregating prediction distributions from all models.
+        aggregated_logits = []
+        aggregated_means = []
+        aggregated_scales = []
+        logger.info("Starting ensemble distribution prediction across all folds.")
+        for fold_idx, model in enumerate(self.models, start=1):
+            dist_obj = model.pred_dist(dataset)  # torch.distributions.Distribution
+            # Assuming dist_obj is MixtureSameFamily
+            if not isinstance(dist_obj, torch.distributions.MixtureSameFamily):
+                raise TypeError("Expected MixtureSameFamily distribution.")
 
-        Args:
-            x (Union[np.ndarray, torch.Tensor]): Input features.
+            logits = dist_obj.mixture_distribution.logits  # [num_samples, n_dist]
+            means = dist_obj.component_distribution.mean  # [num_samples, n_dist]
+            scales = dist_obj.component_distribution.stddev  # [num_samples, n_dist]
 
-        Returns:
-            torch.distributions.Distribution: Aggregated distribution.
-        """
-        dists = []
-        for idx, model in enumerate(self.models, 1):
-            dist = model.pred_dist(x)
-            dists.append(dist)
-            logger.debug(f"Aggregated distribution from model {idx}.")
+            aggregated_logits.append(logits.cpu())
+            aggregated_means.append(means.cpu())
+            aggregated_scales.append(scales.cpu())
 
-        mixture = _average_dist_params(dists)
-        logger.debug("Aggregated all model distributions into a single mixture distribution.")
-        return mixture
+            logger.debug(f"Fold {fold_idx}: Collected distribution parameters.")
 
+        # Average the parameters across folds
+        concatenated_logits = torch.stack(aggregated_logits, dim=0)  # [n_folds, num_samples, n_dist]
+        concatenated_means = torch.stack(aggregated_means, dim=0)    # [n_folds, num_samples, n_dist]
+        concatenated_scales = torch.stack(aggregated_scales, dim=0)  # [n_folds, num_samples, n_dist]
 
-def _average_tensors(tensors):
-    """
-    Computes the average of a list of tensors.
+        averaged_logits = torch.mean(concatenated_logits, dim=0)    # [num_samples, n_dist]
+        averaged_means = torch.mean(concatenated_means, dim=0)      # [num_samples, n_dist]
+        averaged_scales = torch.mean(concatenated_scales, dim=0)    # [num_samples, n_dist]
 
-    Args:
-        tensors (List[torch.Tensor]): List of tensors to average.
+        # Create a new aggregated mixture distribution
+        mixture_distribution = torch.distributions.Categorical(logits=averaged_logits)
+        component_distribution = torch.distributions.Normal(loc=averaged_means, scale=averaged_scales)
+        aggregated_distribution = torch.distributions.MixtureSameFamily(mixture_distribution, component_distribution)
 
-    Returns:
-        torch.Tensor: Averaged tensor.
-    """
-    return torch.mean(torch.stack(tensors), dim=0)
-
-
-def _average_dist_params(
-    dist_array: List[torch.distributions.Distribution],
-) -> torch.distributions.Distribution:
-    """
-    Aggregates distribution parameters across a list of distributions.
-
-    Args:
-        dist_array (List[torch.distributions.Distribution]): List of distributions to aggregate.
-
-    Returns:
-        torch.distributions.Distribution: Aggregated distribution.
-
-    Raises:
-        ValueError: If the supplied distribution type is not supported.
-    """
-    if isinstance(dist_array[0], torch.distributions.MixtureSameFamily):
-        # Cast dist_array to the specific type for type checkers
-        mixture_list = cast(List[torch.distributions.MixtureSameFamily], dist_array)
-        comp = _average_dist_params([x.component_distribution for x in mixture_list])
-        mix = _average_dist_params([x.mixture_distribution for x in mixture_list])
-        return torch.distributions.MixtureSameFamily(mix, comp)
-
-    elif isinstance(dist_array[0], torch.distributions.Normal):
-        normal_list = cast(List[torch.distributions.Normal], dist_array)
-        loc = _average_tensors([x.loc for x in normal_list])
-        scale = _average_tensors([x.scale for x in normal_list])
-        return torch.distributions.Normal(loc=loc, scale=scale)
-
-    elif isinstance(dist_array[0], torch.distributions.Gamma):
-        gamma_list = cast(List[torch.distributions.Gamma], dist_array)
-        concentration = _average_tensors([x.concentration for x in gamma_list])
-        rate = _average_tensors([x.rate for x in gamma_list])
-        return torch.distributions.Gamma(concentration=concentration, rate=rate)
-
-    elif isinstance(dist_array[0], torch.distributions.Categorical):
-        cat_list = cast(List[torch.distributions.Categorical], dist_array)
-        probs = _average_tensors([x.probs for x in cat_list])
-        return torch.distributions.Categorical(probs=probs)
-
-    else:
-        raise ValueError(f"Supplied distribution {dist_array[0]} is not implemented in '_average_dist_params' method.")
+        logger.debug("Completed ensemble distribution aggregation.")
+        return aggregated_distribution

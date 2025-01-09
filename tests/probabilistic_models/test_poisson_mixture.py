@@ -4,9 +4,20 @@ import pytest
 import torch
 import numpy as np
 from torch.optim import Adam
+from torch.utils.data import TensorDataset, DataLoader
 
 from bet_edge.probabilistic_models.models.poisson_mixture import DeepPoissonMixture
 
+# Configure logger for the test module (if needed)
+import logging
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)  # Set to INFO or DEBUG as needed
+handler = logging.StreamHandler()
+formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+handler.setFormatter(formatter)
+if not logger.handlers:
+    logger.addHandler(handler)
 
 @pytest.fixture
 def synthetic_data():
@@ -15,7 +26,6 @@ def synthetic_data():
     X = np.random.randn(100, 10).astype(np.float32)
     y = np.random.poisson(lam=3.0, size=100).astype(np.float32)
     return X, y
-
 
 @pytest.fixture
 def model():
@@ -31,13 +41,11 @@ def model():
         use_cuda=False,
     )
 
-
 def test_model_initialization(model):
     """Test if the model initializes correctly."""
     assert model.hidden is not None, "Hidden layers not initialized."
     assert model.rate_linear.out_features == 3, "Incorrect number of mixture components in rate_linear."
     assert model.mix_linear.out_features == 3, "Incorrect number of mixture components in mix_linear."
-
 
 def test_forward_pass(model):
     """Test the forward pass of the model."""
@@ -47,13 +55,27 @@ def test_forward_pass(model):
     assert dist.mixture_distribution.logits.shape == (5, 3), "Incorrect shape for mixture logits."
     assert dist.component_distribution.rate.shape == (5, 3), "Incorrect shape for component rates."
 
-
 def test_training_step(model, synthetic_data):
     """Test a single training step."""
     X, y = synthetic_data
+
+    # Create TensorDatasets
+    train_dataset = TensorDataset(
+        torch.tensor(X[:80], dtype=torch.float32),
+        torch.tensor(y[:80], dtype=torch.float32),
+    )
+    val_dataset = TensorDataset(
+        torch.tensor(X[80:], dtype=torch.float32),
+        torch.tensor(y[80:], dtype=torch.float32),
+    )
+
+    # Create DataLoaders (optional)
+    # train_loader = DataLoader(train_dataset, batch_size=model.batch_size, shuffle=True)
+    # val_loader = DataLoader(val_dataset, batch_size=model.batch_size, shuffle=False)
+
     model.fit(
-        X=(X[:80], X[80:]),
-        y=(y[:80], y[80:]),
+        train_data=train_dataset,
+        val_data=val_dataset,
         epochs=1,
         early_stopping=False,
     )
@@ -61,13 +83,23 @@ def test_training_step(model, synthetic_data):
     assert len(model.train_loss_arr) == 1, "Training loss not recorded."
     assert len(model.val_loss_arr) == 1, "Validation loss not recorded."
 
-
 def test_prediction(model, synthetic_data):
     """Test the prediction functionality."""
     X, y = synthetic_data
+
+    # Create TensorDatasets
+    train_dataset = TensorDataset(
+        torch.tensor(X[:80], dtype=torch.float32),
+        torch.tensor(y[:80], dtype=torch.float32),
+    )
+    val_dataset = TensorDataset(
+        torch.tensor(X[80:], dtype=torch.float32),
+        torch.tensor(y[80:], dtype=torch.float32),
+    )
+
     model.fit(
-        X=(X[:80], X[80:]),
-        y=(y[:80], y[80:]),
+        train_data=train_dataset,
+        val_data=val_dataset,
         epochs=10,
         early_stopping=False,
     )
@@ -75,13 +107,23 @@ def test_prediction(model, synthetic_data):
     assert preds.shape == y[80:].shape, "Predicted shape does not match target shape."
     assert isinstance(preds, np.ndarray), "Predictions are not a NumPy array."
 
-
 def test_pred_dist(model, synthetic_data):
     """Test the distribution prediction."""
     X, y = synthetic_data
+
+    # Create TensorDatasets
+    train_dataset = TensorDataset(
+        torch.tensor(X[:80], dtype=torch.float32),
+        torch.tensor(y[:80], dtype=torch.float32),
+    )
+    val_dataset = TensorDataset(
+        torch.tensor(X[80:], dtype=torch.float32),
+        torch.tensor(y[80:], dtype=torch.float32),
+    )
+
     model.fit(
-        X=(X[:80], X[80:]),
-        y=(y[:80], y[80:]),
+        train_data=train_dataset,
+        val_data=val_dataset,
         epochs=10,
         early_stopping=False,
     )
