@@ -2,9 +2,9 @@ import re
 from io import BytesIO
 from typing import Optional
 import boto3
-from ..interfaces import IDataStorage, ICredentialProvider
+from ..interfaces import IDataStorage, ICredProvider
 
-class S3DataStorage(IDataStorage):
+class S3Storage(IDataStorage):
     """
     Implementation of the IDataStorage interface for AWS S3.
 
@@ -18,12 +18,12 @@ class S3DataStorage(IDataStorage):
 
     S3_URI_REGEX = re.compile(r'^s3://([^/]+)/(.+)$')
 
-    def __init__(self, credential_provider: Optional[ICredentialProvider] = None):
+    def __init__(self, credential_provider: Optional[ICredProvider] = None):
         """
         Initializes the S3 storage with an optional credential provider.
 
         Args:
-            credential_provider (Optional[ICredentialProvider]): A credential provider for handling authentication.
+            credential_provider (Optional[ICredProvider]): A credential provider for handling authentication.
 
         Raises:
             boto3.exceptions.Boto3Error: If the boto3 client cannot be initialized.

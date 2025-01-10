@@ -1,8 +1,8 @@
 """
-This module provides a concrete implementation of the ICredentialProvider interface
+This module provides a concrete implementation of the ICredProvider interface
 that loads credentials from environment variables or a .env file.
 
-The EnvironmentCredentialProvider dynamically assigns attributes based on a predefined
+The EnvCredProvider dynamically assigns attributes based on a predefined
 mapping of environment variable names to attribute names. This allows for easy expansion
 and dynamic handling of various credential sets, such as AWS or database credentials.
 """
@@ -10,12 +10,12 @@ and dynamic handling of various credential sets, such as AWS or database credent
 import os
 import logging
 from dotenv import load_dotenv
-from bet_edge.data_io.interfaces import ICredentialProvider
+from bet_edge.data_io.interfaces import ICredProvider
 
 logger = logging.getLogger(__name__)
 
 
-class EnvironmentCredentialProvider(ICredentialProvider):
+class EnvCredProvider(ICredProvider):
     """
     A credential manager that retrieves credentials from environment variables or a .env file.
 
@@ -42,7 +42,7 @@ class EnvironmentCredentialProvider(ICredentialProvider):
 
     def __init__(self, env_path=None):
         """
-        Initializes the EnvironmentCredentialProvider and loads credentials.
+        Initializes the EnvCredProvider and loads credentials.
 
         Parameters:
             env_path (str, optional): The path to the .env file. If not provided, defaults

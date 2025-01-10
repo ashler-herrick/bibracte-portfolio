@@ -5,7 +5,7 @@ import logging
 from torch.utils.data import DataLoader, Dataset
 from torch.optim.optimizer import Optimizer
 from abc import ABC, abstractmethod
-from typing import Optional, Callable, List
+from typing import Optional, Callable
 
 logger = logging.getLogger(__name__)
 

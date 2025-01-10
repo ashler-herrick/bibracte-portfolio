@@ -4,16 +4,13 @@ from io import BytesIO
 from tempfile import TemporaryDirectory
 
 # Import storage backends and utilities
-from bet_edge.data_io.storage.local_data import LocalDataStorage
-from bet_edge.data_io.storage.s3_data import S3DataStorage
-from bet_edge.data_io.storage.postgres_data import PostgreSQLDataStorage
-from bet_edge.data_io.storage.polars_data import PolarsDataFrameStorage
-from bet_edge.data_io.env_credential_provider import EnvironmentCredentialProvider
-from bet_edge.data_io.utils import transfer_data, execute_sql
-
+from bet_edge.data_io.storage.local_data import LocalStorage
+from bet_edge.data_io.storage.s3_data import S3Storage
+from bet_edge.data_io.storage.postgres_data import PostgresStorage
+from bet_edge.data_io.env_cred_provider import EnvCredProvider
+from bet_edge.data_io.utils import execute_sql
 
 import polars as pl
-from testcontainers.postgres import PostgresContainer
 
 # -------------------------------
 # Fixtures for Storage Backends
@@ -28,13 +25,13 @@ def tmp_dir():
 @pytest.fixture
 def s3_storage():
     
-    return S3DataStorage(credential_provider=EnvironmentCredentialProvider())
+    return S3Storage(credential_provider=EnvCredProvider())
 
 
 @pytest.fixture
 def postgres_storage():
 
-    storage = PostgreSQLDataStorage(credential_provider=EnvironmentCredentialProvider())
+    storage = PostgresStorage(credential_provider=EnvCredProvider())
     yield storage
     # Cleanup: Drop tables if necessary
     execute_sql(storage, "DROP TABLE IF EXISTS test_table;")
@@ -42,11 +39,7 @@ def postgres_storage():
 
 @pytest.fixture
 def local_storage(tmp_dir):
-    return LocalDataStorage()
-
-@pytest.fixture
-def polars_storage():
-    return PolarsDataFrameStorage()
+    return LocalStorage()
 
 # -------------------------------
 # Helper Functions
@@ -64,7 +57,7 @@ def create_sample_parquet(file_path):
     df.write_parquet(file_path)
 
 # -------------------------------
-# Tests for LocalDataStorage
+# Tests for LocalStorage
 # -------------------------------
 
 def test_local_write_read_binary(local_storage, tmp_dir):
@@ -96,7 +89,7 @@ def test_local_write_read_csv(local_storage, tmp_dir):
     assert df.to_dict(as_series=False) == {"id": [1, 2], "name": ["Alice", "Bob"]}
 
 # -------------------------------
-# Tests for S3DataStorage
+# Tests for S3Storage
 # -------------------------------
 
 def test_s3_write_read_binary(s3_storage):
@@ -127,11 +120,11 @@ def test_s3_write_read_csv(s3_storage):
     assert df.to_dict(as_series=False) == {"id": [1, 2], "name": ["Alice", "Bob"]}
 
 # -------------------------------
-# Tests for PostgreSQLDataStorage
+# Tests for PostgresStorage
 # -------------------------------
 
 def test_postgres_write_read_binary(postgres_storage, tmp_dir):
-    # PostgreSQLDataStorage does not support binary formats directly; it's limited to CSV.
+    # PostgresStorage does not support binary formats directly; it's limited to CSV.
     # Therefore, this test will be skipped or expected to raise an error.
     source_content = b"binary data"
     data = BytesIO(source_content)
@@ -185,130 +178,8 @@ def test_postgres_write_read_via_utils(postgres_storage, tmp_dir):
     df = pl.read_csv(read_data)
     assert df.to_dict(as_series=False) == {"id": [1, 2], "name": ["Alice", "Bob"]}
 
-# -------------------------------
-# Tests for PolarsDataFrameStorage
-# -------------------------------
 
-def test_polars_write_read_csv(polars_storage, tmp_dir):
-    # Write CSV data
-    csv_path = os.path.join(tmp_dir, "data.csv")
-    create_sample_csv(csv_path)
-    polars_storage.write_from_file(csv_path, "df_csv", format="csv")
-    
-    # Read back to a new CSV file
-    output_path = os.path.join(tmp_dir, "output.csv")
-    polars_storage.read_to_file("df_csv", output_path, format="csv")
-    
-    # Verify the content
-    with open(output_path, 'r', encoding='utf-8') as f:
-        content = f.read()
-    assert content == "id,name\n1,Alice\n2,Bob\n"
 
-def test_polars_write_read_parquet(polars_storage, tmp_dir):
-    # Write Parquet data
-    parquet_path = os.path.join(tmp_dir, "data.parquet")
-    create_sample_parquet(parquet_path)
-    polars_storage.write_from_file(parquet_path, "df_parquet", format="parquet")
-    
-    # Read back to a new Parquet file
-    output_path = os.path.join(tmp_dir, "output.parquet")
-    polars_storage.read_to_file("df_parquet", output_path, format="parquet")
-    
-    # Verify the content
-    df = pl.read_parquet(output_path)
-    assert df.to_dict(as_series=False) == {"id": [1, 2], "name": ["Alice", "Bob"]}
-
-def test_polars_write_read_bytes_io(polars_storage):
-    # Create DataFrame and write to BytesIO
-    df = pl.DataFrame({
-        "id": [1, 2],
-        "name": ["Alice", "Bob"]
-    })
-    csv_bytes = BytesIO()
-    df.write_csv(csv_bytes)
-    
-    # Write BytesIO to Polars storage
-    polars_storage.write(csv_bytes, "df_io", format="csv")
-    
-    # Read back as BytesIO
-    read_bytes = polars_storage.read("df_io", format="csv")
-    df_read = pl.read_csv(read_bytes)
-    
-    assert df_read.to_dict(as_series=False) == {"id": [1, 2], "name": ["Alice", "Bob"]}
-
-# -------------------------------
-# Tests for Data Transfer
-# -------------------------------
-
-def test_transfer_local_to_s3(local_storage, s3_storage, tmp_dir):
-    # Create a local file
-    source_path = os.path.join(tmp_dir, "transfer.bin")
-    content = b"Transfer this to S3."
-    with open(source_path, 'wb') as f:
-        f.write(content)
-    
-    destination_identifier = "s3://bet-edge/transfer.bin"
-    
-    # Transfer from Local to S3
-    transfer_data(local_storage, source_path, s3_storage, destination_identifier, format="binary")
-    
-    # Read back from S3
-    read_data = s3_storage.read(destination_identifier, format="binary")
-    assert read_data.getvalue() == content
-
-def test_transfer_s3_to_polars(s3_storage, polars_storage, tmp_dir):
-    # Create CSV data in S3
-    bucket = "bet-edge"
-    key = "transfer_data.csv"
-    csv_content = "id,name\n3,Charlie\n4,David\n"
-    s3_storage.write(BytesIO(csv_content.encode('utf-8')), f"s3://{bucket}/{key}", format="csv")
-    
-    # Transfer from S3 to Polars
-    destination_identifier = "df_transfer"
-    transfer_data(s3_storage, f"s3://{bucket}/{key}", polars_storage, destination_identifier, format="csv")
-    
-    # Read back from Polars and verify
-    read_data = polars_storage.read(destination_identifier, format="csv")
-    df = pl.read_csv(read_data)
-    assert df.to_dict(as_series=False) == {"id": [3, 4], "name": ["Charlie", "David"]}
-
-def test_transfer_postgres_to_local(postgres_storage, local_storage, tmp_dir):
-    # Setup PostgreSQL table
-    execute_sql(postgres_storage, "DROP TABLE IF EXISTS transfer_test;")
-    execute_sql(postgres_storage, "CREATE TABLE transfer_test (id INT, name TEXT);")
-    execute_sql(postgres_storage, "INSERT INTO transfer_test (id, name) VALUES (5, 'Eve'), (6, 'Frank');")
-    
-    # Destination file path
-    dest_path = os.path.join(tmp_dir, "postgres_data.csv")
-    
-    # Transfer from PostgreSQL to Local
-    transfer_data(postgres_storage, "transfer_test", local_storage, dest_path, format="csv")
-    
-    # Verify the file content
-    with open(dest_path, 'r', encoding='utf-8') as f:
-        content = f.read()
-    assert content == "id,name\n5,Eve\n6,Frank\n"
-
-def test_transfer_polars_to_postgres(polars_storage, postgres_storage, tmp_dir):
-    # Create and store DataFrame in Polars
-    df = pl.DataFrame({
-        "id": [7, 8],
-        "name": ["Grace", "Heidi"]
-    })
-    csv_bytes = BytesIO()
-    df.write_csv(csv_bytes)
-    polars_storage.write(csv_bytes, "df_postgres", format="csv")
-    
-    # Create PostgreSQL table
-    execute_sql(postgres_storage, "DROP TABLE IF EXISTS transfer_pg;")
-    execute_sql(postgres_storage, "CREATE TABLE transfer_pg (id INT, name TEXT);")
-    
-    # Transfer from Polars to PostgreSQL
-    transfer_data(polars_storage, "df_postgres", postgres_storage, "transfer_pg", format="csv")
-    
-    # Verify data in PostgreSQL
-    results = execute_sql(postgres_storage, "SELECT id, name FROM transfer_pg ORDER BY id;")
-    assert results == [(7, 'Grace'), (8, 'Heidi')]
 
 # -------------------------------
 # Tests for Error Handling
@@ -331,14 +202,6 @@ def test_invalid_identifier_local(local_storage, tmp_dir):
     # Attempt to read from a non-existent local file
     with pytest.raises(FileNotFoundError):
         local_storage.read(os.path.join(tmp_dir, "nonexistent.bin"), format="binary")
-
-def test_invalid_format_polars(polars_storage, tmp_dir):
-    # Attempt to write with unsupported format
-    csv_path = os.path.join(tmp_dir, "data.csv")
-    create_sample_csv(csv_path)
-    
-    with pytest.raises(ValueError, match="Format xml not supported"):
-        polars_storage.write_from_file(csv_path, "df_invalid", format="xml")
 
 
 

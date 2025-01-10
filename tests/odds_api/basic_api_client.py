@@ -1,7 +1,7 @@
 from bet_edge.odds_api.api_client import APIClient
-from bet_edge.data_io.env_credential_provider import EnvironmentCredentialProvider
+from bet_edge.data_io.env_cred_provider import EnvCredProvider
 
-credential_provider = EnvironmentCredentialProvider()
+credential_provider = EnvCredProvider()
 api_client = APIClient(credential_provider, sport_code="americanfootball_nfl")
 
 res = api_client.fetch_sports()

@@ -17,7 +17,7 @@ import requests
 from datetime import datetime
 from typing import Optional, Dict, Any, List
 
-from bet_edge.data_io.interfaces import ICredentialProvider
+from bet_edge.data_io.interfaces import ICredProvider
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +34,7 @@ class APIClient:
     and odds for specific sports or events.
 
     Attributes:
-        credential_manager (ICredentialProvider): Provides API credentials.
+        credential_manager (ICredProvider): Provides API credentials.
         sport_code (str): Code representing the sport to query.
         regions (str): Region to query for odds data. Default is 'us'.
         odds_format (str): Format of the odds, either 'decimal' or 'american'. Default is 'decimal'.
@@ -44,7 +44,7 @@ class APIClient:
 
     def __init__(
         self,
-        credential_manager: ICredentialProvider,
+        credential_manager: ICredProvider,
         sport_code: str = "",
         regions: str = "us",
         odds_format: str = "decimal",
@@ -55,7 +55,7 @@ class APIClient:
         Initializes the APIClient with the given credentials and configuration.
 
         Args:
-            credential_manager (ICredentialProvider): Provides the API credentials.
+            credential_manager (ICredProvider): Provides the API credentials.
             sport_code (str): Sport code to query for data. Default is ''.
             regions (str): Region to query for odds data. Default is 'us'.
             odds_format (str): Format of the odds, e.g., 'decimal' or 'american'. Default is 'decimal'.

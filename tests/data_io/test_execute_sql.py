@@ -1,15 +1,15 @@
 # tests/test_postgres_sql.py
 
 import pytest
-from bet_edge.data_io.storage.postgres_data import PostgreSQLDataStorage
-from bet_edge.data_io.env_credential_provider import EnvironmentCredentialProvider
+from bet_edge.data_io.storage.postgres_data import PostgresStorage
+from bet_edge.data_io.env_cred_provider import EnvCredProvider
 from bet_edge.data_io.utils import execute_sql
 
 
 @pytest.fixture
 def postgres_storage():
 
-    return PostgreSQLDataStorage(credential_provider=EnvironmentCredentialProvider())
+    return PostgresStorage(credential_provider=EnvCredProvider())
 
 def test_execute_sql_non_select(postgres_storage):
     # Create a temporary table
@@ -48,7 +48,7 @@ def test_execute_sql_with_csv_copy(postgres_storage, tmp_path):
     csv_path = tmp_path / "data.csv"
     csv_path.write_text("id,value\n10,Hello\n20,World\n")
 
-    # Use PostgreSQLDataStorage directly to load CSV into the table
+    # Use PostgresStorage directly to load CSV into the table
     postgres_storage.write_from_file(str(csv_path), "csv_test", format="csv")
 
     # Verify the data is loaded correctly

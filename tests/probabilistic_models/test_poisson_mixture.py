@@ -4,7 +4,7 @@ import pytest
 import torch
 import numpy as np
 from torch.optim import Adam
-from torch.utils.data import TensorDataset, DataLoader
+from torch.utils.data import TensorDataset
 
 from bet_edge.probabilistic_models.models.poisson_mixture import DeepPoissonMixture
 

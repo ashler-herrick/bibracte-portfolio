@@ -1,9 +1,9 @@
 import psycopg2
 from io import BytesIO
 from typing import Optional
-from ..interfaces import IDataStorage, ICredentialProvider
+from ..interfaces import IDataStorage, ICredProvider
 
-class PostgreSQLDataStorage(IDataStorage):
+class PostgresStorage(IDataStorage):
     """
     Implementation of the IDataStorage interface for PostgreSQL.
 
@@ -14,12 +14,12 @@ class PostgreSQLDataStorage(IDataStorage):
         conn (psycopg2.connection): The PostgreSQL database connection.
     """
 
-    def __init__(self, credential_provider: Optional[ICredentialProvider] = None):
+    def __init__(self, credential_provider: Optional[ICredProvider] = None):
         """
         Initializes the PostgreSQL storage with an optional credential provider.
 
         Args:
-            credential_provider (Optional[ICredentialProvider]): A credential provider for handling authentication.
+            credential_provider (Optional[ICredProvider]): A credential provider for handling authentication.
 
         Raises:
             psycopg2.OperationalError: If the connection to the PostgreSQL database fails.
@@ -46,7 +46,7 @@ class PostgreSQLDataStorage(IDataStorage):
             ValueError: If the format is not "csv".
         """
         if format != "csv":
-            raise ValueError("PostgreSQLDataStorage currently only supports CSV format.")
+            raise ValueError("PostgresStorage currently only supports CSV format.")
 
     def write_from_file(self, source_file_path: str, destination_identifier: str, format: str = "csv") -> None:
         """

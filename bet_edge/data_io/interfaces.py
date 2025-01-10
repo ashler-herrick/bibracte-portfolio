@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from io import BytesIO
 from typing import Optional
 
-class ICredentialProvider(ABC):
+class ICredProvider(ABC):
     """
     An interface for credential providers that fetch and supply credentials for
     accessing various services (e.g., AWS, databases, etc.).
@@ -27,12 +27,12 @@ class IDataStorage(ABC):
     that support reading and writing data in different formats.
     """
 
-    def __init__(self, credential_provider: Optional[ICredentialProvider] = None):
+    def __init__(self, credential_provider: Optional[ICredProvider] = None):
         """
         Initializes the storage class with an optional credential provider.
 
         Args:
-            credential_provider (Optional[ICredentialProvider]): An optional credential provider
+            credential_provider (Optional[ICredProvider]): An optional credential provider
                 for handling authentication and access control.
         """
         self.credential_provider = credential_provider

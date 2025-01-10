@@ -1,21 +1,21 @@
 import shutil
 from io import BytesIO
 from typing import Optional
-from ..interfaces import IDataStorage, ICredentialProvider
+from ..interfaces import IDataStorage, ICredProvider
 
-class LocalDataStorage(IDataStorage):
+class LocalStorage(IDataStorage):
     """
     Implementation of the IDataStorage interface for local file system storage.
 
     This class provides methods to read and write data to and from the local file system.
     """
 
-    def __init__(self, credential_provider: Optional[ICredentialProvider] = None):
+    def __init__(self, credential_provider: Optional[ICredProvider] = None):
         """
         Initializes the local storage with an optional credential provider.
 
         Args:
-            credential_provider (Optional[ICredentialProvider]): An optional credential provider
+            credential_provider (Optional[ICredProvider]): An optional credential provider
                 for handling authentication (not typically used in local storage).
         """
         super().__init__(credential_provider=credential_provider)
