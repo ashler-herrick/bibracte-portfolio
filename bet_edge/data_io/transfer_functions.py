@@ -205,6 +205,8 @@ def transfer_s3_to_polars(
     Args:
         s3_uri (str): The S3 URI (e.g., "s3://bucket/key.csv").
     """
+    creds = CRED_PROVIDER.get_credentials()
+    storage_options = {"key" : creds["aws_access_key_id"], "secret" : creds["aws_secret_access_key"], "region_name" : creds["aws_default_region"]}
     ext = infer_format_from_extension(s3_uri)
     # Validate supported formats
     supported_formats = ['csv', 'parquet']
@@ -212,6 +214,6 @@ def transfer_s3_to_polars(
         raise ValueError(f"Unsupported format '{ext}'. Supported formats are: {supported_formats}")
     
     if ext == 'csv':
-        return pl.read_csv(s3_uri)
+        return pl.read_csv(s3_uri, storage_options=storage_options)
     elif ext == 'parquet':
-        return pl.read_parquet(s3_uri)
+        return pl.read_parquet(s3_uri, storage_options=storage_options)

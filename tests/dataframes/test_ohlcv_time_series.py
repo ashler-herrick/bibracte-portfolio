@@ -1,7 +1,7 @@
 import pytest
 import polars as pl
 
-from bet_edge.dataframes.ohlcv_time_series import calc_rsi
+from bet_edge.indicators.ohlcv_time_series import calc_rsi
 
 @pytest.fixture
 def sample_data():

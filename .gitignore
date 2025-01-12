@@ -17,4 +17,3 @@ settings/user_settings.toml
 .benchmarks
 *.log
 .ipynb_checkpoints
-*.ipynb
