@@ -33,6 +33,7 @@ class EnvCredProvider(ICredProvider):
         #polygon
         "polygon_access_key_id" : "POLYGON_ACCESS_KEY_ID",
         "polygon_secret_access_key": "POLYGON_SECRET_ACCESS_KEY",
+        "polygon_api_key": "POLYGON_API_KEY",
         #odds api
         "odds_api_key": "ODDS_API_KEY",
         #pg creds

@@ -1,6 +1,6 @@
 from typing import Callable, List, Any
 
-from bet_edge.dataframes.dataframe_manager import DataFrameManager
+from bet_edge.dataframes.managers import DataFrameManager
 
 
 class Pipeline:

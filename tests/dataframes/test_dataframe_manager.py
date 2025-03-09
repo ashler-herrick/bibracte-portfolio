@@ -2,7 +2,7 @@ import pytest
 import polars as pl
 from polars.testing import assert_frame_equal
 
-from bet_edge.dataframes.dataframe_manager import DataFrameManager
+from bet_edge.dataframes.managers import DataFrameManager
 
 
 @pytest.fixture

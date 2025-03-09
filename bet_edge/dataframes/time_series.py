@@ -8,7 +8,7 @@ from typing import List
 
 import polars as pl
 
-from bet_edge.dataframes.dataframe_manager import DataFrameManager
+from bet_edge.dataframes.managers import DataFrameManager
 from bet_edge.dataframes.column_helpers import sym_diff
 
 
