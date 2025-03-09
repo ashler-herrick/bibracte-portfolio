@@ -30,6 +30,9 @@ class EnvCredProvider(ICredProvider):
         "aws_secret_access_key": "AWS_SECRET_ACCESS_KEY",
         "aws_session_token": "AWS_SESSION_TOKEN",
         "aws_default_region": "AWS_DEFAULT_REGION",
+        #polygon
+        "polygon_access_key_id" : "POLYGON_ACCESS_KEY_ID",
+        "polygon_secret_access_key": "POLYGON_SECRET_ACCESS_KEY",
         #odds api
         "odds_api_key": "ODDS_API_KEY",
         #pg creds
