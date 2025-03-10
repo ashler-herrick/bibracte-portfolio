@@ -85,7 +85,7 @@ class KFoldDPM:
             nll = -dist_obj.log_prob(y_vals)
             total_nll += torch.sum(nll).item()
             total_samples += y_vals.size(0)
-        average_nll = total_nll / total_samples if total_samples > 0 else float('nan')
+        average_nll = total_nll / total_samples if total_samples > 0 else float("nan")
         return average_nll
 
     def train_kfold(
@@ -150,12 +150,9 @@ class KFoldDPM:
             logger.info(f"Fold {fold_idx}: MAE = {mae:.6f}, NLL = {nll:.6f}")
 
         # Summarize cross-validation results
-        average_mae = np.mean(self.fold_mae) if self.fold_mae else float('nan')
-        average_nll = np.mean(self.fold_nll) if self.fold_nll else float('nan')
-        logger.info(
-            f"K-Fold Completed. Average MAE = {average_mae:.6f}, "
-            f"Average NLL = {average_nll:.6f}"
-        )
+        average_mae = np.mean(self.fold_mae) if self.fold_mae else float("nan")
+        average_nll = np.mean(self.fold_nll) if self.fold_nll else float("nan")
+        logger.info(f"K-Fold Completed. Average MAE = {average_mae:.6f}, " f"Average NLL = {average_nll:.6f}")
 
     def predict(self, dataset: Dataset) -> np.ndarray:
         """
@@ -218,12 +215,12 @@ class KFoldDPM:
 
         # Average the parameters across folds
         concatenated_logits = torch.stack(aggregated_logits, dim=0)  # [n_folds, num_samples, n_dist]
-        concatenated_means = torch.stack(aggregated_means, dim=0)    # [n_folds, num_samples, n_dist]
+        concatenated_means = torch.stack(aggregated_means, dim=0)  # [n_folds, num_samples, n_dist]
         concatenated_scales = torch.stack(aggregated_scales, dim=0)  # [n_folds, num_samples, n_dist]
 
-        averaged_logits = torch.mean(concatenated_logits, dim=0)    # [num_samples, n_dist]
-        averaged_means = torch.mean(concatenated_means, dim=0)      # [num_samples, n_dist]
-        averaged_scales = torch.mean(concatenated_scales, dim=0)    # [num_samples, n_dist]
+        averaged_logits = torch.mean(concatenated_logits, dim=0)  # [num_samples, n_dist]
+        averaged_means = torch.mean(concatenated_means, dim=0)  # [num_samples, n_dist]
+        averaged_scales = torch.mean(concatenated_scales, dim=0)  # [num_samples, n_dist]
 
         # Create a new aggregated mixture distribution
         mixture_distribution = torch.distributions.Categorical(logits=averaged_logits)

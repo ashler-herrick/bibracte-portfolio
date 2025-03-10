@@ -3,6 +3,7 @@ from io import BytesIO
 from typing import Optional
 from ..interfaces import IDataStorage, ICredProvider
 
+
 class LocalStorage(IDataStorage):
     """
     Implementation of the IDataStorage interface for local file system storage.
@@ -54,7 +55,7 @@ class LocalStorage(IDataStorage):
             format (str, optional): The format of the data (e.g., "binary", "text").
                 Defaults to "binary".
         """
-        with open(destination_identifier, 'wb') as f:
+        with open(destination_identifier, "wb") as f:
             f.write(data.getvalue())
 
     def read(self, source_identifier: str, format: str = "binary") -> BytesIO:
@@ -69,5 +70,5 @@ class LocalStorage(IDataStorage):
         Returns:
             BytesIO: The data read from the file as a BytesIO object.
         """
-        with open(source_identifier, 'rb') as f:
+        with open(source_identifier, "rb") as f:
             return BytesIO(f.read())

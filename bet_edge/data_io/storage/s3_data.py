@@ -4,6 +4,7 @@ from typing import Optional
 import boto3
 from ..interfaces import IDataStorage, ICredProvider
 
+
 class S3Storage(IDataStorage):
     """
     Implementation of the IDataStorage interface for AWS S3.
@@ -16,7 +17,7 @@ class S3Storage(IDataStorage):
         s3 (boto3.client): The boto3 client used to interact with S3.
     """
 
-    S3_URI_REGEX = re.compile(r'^s3://([^/]+)/(.+)$')
+    S3_URI_REGEX = re.compile(r"^s3://([^/]+)/(.+)$")
 
     def __init__(self, credential_provider: Optional[ICredProvider] = None):
         """
@@ -31,11 +32,11 @@ class S3Storage(IDataStorage):
         super().__init__(credential_provider=credential_provider)
         creds = self.credential_provider.get_credentials() if self.credential_provider else {}
         self.s3 = boto3.client(
-            's3',
-            aws_access_key_id=creds.get('aws_access_key_id'),
-            aws_secret_access_key=creds.get('aws_secret_access_key'),
-            aws_session_token=creds.get('aws_session_token'),
-            region_name=creds.get('aws_default_region')
+            "s3",
+            aws_access_key_id=creds.get("aws_access_key_id"),
+            aws_secret_access_key=creds.get("aws_secret_access_key"),
+            aws_session_token=creds.get("aws_session_token"),
+            region_name=creds.get("aws_default_region"),
         )
 
     def _parse_s3_uri(self, uri: str):
@@ -106,4 +107,4 @@ class S3Storage(IDataStorage):
         """
         bucket, key = self._parse_s3_uri(source_identifier)
         obj = self.s3.get_object(Bucket=bucket, Key=key)
-        return BytesIO(obj['Body'].read())
+        return BytesIO(obj["Body"].read())

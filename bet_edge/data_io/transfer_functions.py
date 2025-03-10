@@ -28,11 +28,11 @@ def infer_format_from_extension(identifier: str, default_format: str = "binary")
     """
     _, ext = os.path.splitext(identifier.lower())
     format_mapping = {
-        '.csv': 'csv',
-        '.parquet': 'parquet',
-        '.json': 'json',
-        '.txt': 'text',
-        '.bin': 'binary',
+        ".csv": "csv",
+        ".parquet": "parquet",
+        ".json": "json",
+        ".txt": "text",
+        ".bin": "binary",
         # Add more mappings as needed
     }
     return format_mapping.get(ext, default_format)
@@ -43,7 +43,7 @@ def transfer_data(
     source_id: str,
     dest_storage: "IDataStorage",
     dest_id: str,
-    format: Optional[str] = None
+    format: Optional[str] = None,
 ):
     """
     Transfers data from a source storage to a destination storage.
@@ -66,8 +66,10 @@ def transfer_data(
 
     data = source_storage.read(source_id, format=format)
     dest_storage.write(data, dest_id, format=format)
-    logger.info(f"Data transferred from '{source_id}' ({type(source_storage).__name__}) "
-          f"to '{dest_id}' ({type(dest_storage).__name__}) in '{format}' format.")
+    logger.info(
+        f"Data transferred from '{source_id}' ({type(source_storage).__name__}) "
+        f"to '{dest_id}' ({type(dest_storage).__name__}) in '{format}' format."
+    )
 
 
 def transfer_local_to_s3(
@@ -91,7 +93,7 @@ def transfer_local_to_s3(
         source_id=source_file_path,
         dest_storage=s3_storage,
         dest_id=dest_s3_uri,
-        format=format
+        format=format,
     )
 
 
@@ -99,7 +101,6 @@ def transfer_s3_to_local(
     source_s3_uri: str,
     destination_file_path: str,
     format: Optional[str] = None,
-
 ):
     """
     Transfer data from an S3 URI to a local file.
@@ -118,8 +119,9 @@ def transfer_s3_to_local(
         source_id=source_s3_uri,
         dest_storage=local_storage,
         dest_id=destination_file_path,
-        format=format
+        format=format,
     )
+
 
 def transfer_local_to_postgres(
     source_file_path: str,
@@ -143,8 +145,9 @@ def transfer_local_to_postgres(
         source_id=source_file_path,
         dest_storage=postgres_storage,
         dest_id=destination_table,
-        format=format
+        format=format,
     )
+
 
 def transfer_postgres_to_local(
     source_table: str,
@@ -167,13 +170,13 @@ def transfer_postgres_to_local(
         source_id=source_table,
         dest_storage=local_storage,
         dest_id=dest_file_path,
-        format=format
+        format=format,
     )
 
 
 def transfer_polars_to_s3(
-        source_df: pl.DataFrame,
-        s3_uri: str,   
+    source_df: pl.DataFrame,
+    s3_uri: str,
 ):
     """
     Write a polars dataframe to S3.
@@ -184,20 +187,20 @@ def transfer_polars_to_s3(
     """
     ext = infer_format_from_extension(s3_uri)
     # Validate supported formats
-    supported_formats = ['csv', 'parquet']
+    supported_formats = ["csv", "parquet"]
     if ext not in supported_formats:
         raise ValueError(f"Unsupported format '{ext}'. Supported formats are: {supported_formats}")
-    
+
     fs = s3fs.S3FileSystem()
-    with fs.open(s3_uri, mode='wb') as f:
-        if ext == 'csv':
-            source_df.write_csv(f)  #type: ignore
-        elif ext == 'parquet':
-            source_df.write_parquet(f) #type: ignore
+    with fs.open(s3_uri, mode="wb") as f:
+        if ext == "csv":
+            source_df.write_csv(f)  # type: ignore
+        elif ext == "parquet":
+            source_df.write_parquet(f)  # type: ignore
 
 
 def transfer_s3_to_polars(
-        s3_uri: str,   
+    s3_uri: str,
 ):
     """
     Load an S3 object to a polars dataframe.
@@ -206,14 +209,18 @@ def transfer_s3_to_polars(
         s3_uri (str): The S3 URI (e.g., "s3://bucket/key.csv").
     """
     creds = CRED_PROVIDER.get_credentials()
-    storage_options = {"key" : creds["aws_access_key_id"], "secret" : creds["aws_secret_access_key"], "region_name" : creds["aws_default_region"]}
+    storage_options = {
+        "key": creds["aws_access_key_id"],
+        "secret": creds["aws_secret_access_key"],
+        "region_name": creds["aws_default_region"],
+    }
     ext = infer_format_from_extension(s3_uri)
     # Validate supported formats
-    supported_formats = ['csv', 'parquet']
+    supported_formats = ["csv", "parquet"]
     if ext not in supported_formats:
         raise ValueError(f"Unsupported format '{ext}'. Supported formats are: {supported_formats}")
-    
-    if ext == 'csv':
+
+    if ext == "csv":
         return pl.read_csv(s3_uri, storage_options=storage_options)
-    elif ext == 'parquet':
+    elif ext == "parquet":
         return pl.read_parquet(s3_uri, storage_options=storage_options)

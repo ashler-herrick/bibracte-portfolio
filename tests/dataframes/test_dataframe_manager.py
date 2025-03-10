@@ -161,26 +161,21 @@ def tet_get_col_diff(sample_dfm, sample_dfm2, duplicate_dfm):
 
     assert sample_dfm.get_col_diff(duplicate_dfm) == []
 
+
 def test_get_foreign_key():
     df = pl.DataFrame(
         {
             "id": [1, 2, 3, 1, 2],
             "season": [2020, 2020, 2020, 2021, 2021],
             "week": [1, 1, 1, 1, 1],
-            "team": ["A", "B", "C", "A","B"],
-            "position": ["QB", "TE", "RB", "QB", "TE"]
+            "team": ["A", "B", "C", "A", "B"],
+            "position": ["QB", "TE", "RB", "QB", "TE"],
         }
     )
     dfm = DataFrameManager(df, ["id", "season", "week"], ["id", "season", "week", "team", "position"])
 
-    team = pl.DataFrame(
-        {
-            "season": [2020, 2020, 2020, 2021, 2021],
-            "team": ["A", "B", "C", "A", "B"]
-        }
-    )
+    team = pl.DataFrame({"season": [2020, 2020, 2020, 2021, 2021], "team": ["A", "B", "C", "A", "B"]})
     team_dfm = DataFrameManager(team, ["season", "team"], ["season", "team"])
 
     fk = dfm.get_foreign_key(team_dfm)
     assert set(fk) == set(["season", "team"])
-

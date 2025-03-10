@@ -3,6 +3,7 @@ from io import BytesIO
 from typing import Optional
 from ..interfaces import IDataStorage, ICredProvider
 
+
 class PostgresStorage(IDataStorage):
     """
     Implementation of the IDataStorage interface for PostgreSQL.
@@ -27,11 +28,11 @@ class PostgresStorage(IDataStorage):
         super().__init__(credential_provider=credential_provider)
         creds = self.credential_provider.get_credentials() if self.credential_provider else {}
         self.conn = psycopg2.connect(
-            host=creds.get('postgres_host'),
-            port=creds.get('postgres_port'),
-            dbname=creds.get('postgres_db'),
-            user=creds.get('postgres_user'),
-            password=creds.get('postgres_password')
+            host=creds.get("postgres_host"),
+            port=creds.get("postgres_port"),
+            dbname=creds.get("postgres_db"),
+            user=creds.get("postgres_user"),
+            password=creds.get("postgres_password"),
         )
         self.conn.autocommit = True
 
@@ -62,7 +63,7 @@ class PostgresStorage(IDataStorage):
         """
         self._ensure_csv(format)
         with self.conn.cursor() as cur:
-            with open(source_file_path, 'r', encoding='utf-8') as f:
+            with open(source_file_path, "r", encoding="utf-8") as f:
                 cur.copy_expert(f"COPY {destination_identifier} FROM STDIN WITH CSV HEADER", f)
 
     def read_to_file(self, source_identifier: str, destination_file_path: str, format: str = "csv") -> None:
@@ -79,7 +80,7 @@ class PostgresStorage(IDataStorage):
         """
         self._ensure_csv(format)
         with self.conn.cursor() as cur:
-            with open(destination_file_path, 'w', encoding='utf-8') as f:
+            with open(destination_file_path, "w", encoding="utf-8") as f:
                 cur.copy_expert(f"COPY {source_identifier} TO STDOUT WITH CSV HEADER", f)
 
     def write(self, data: BytesIO, destination_identifier: str, format: str = "csv") -> None:
@@ -97,7 +98,7 @@ class PostgresStorage(IDataStorage):
         self._ensure_csv(format)
         with self.conn.cursor() as cur:
             data.seek(0)
-            cur.copy_expert(f"COPY {destination_identifier} FROM STDIN CSV HEADER", data) #type: ignore
+            cur.copy_expert(f"COPY {destination_identifier} FROM STDIN CSV HEADER", data)  # type: ignore
 
     def read(self, source_identifier: str, format: str = "csv") -> BytesIO:
         """
@@ -116,6 +117,6 @@ class PostgresStorage(IDataStorage):
         self._ensure_csv(format)
         buf = BytesIO()
         with self.conn.cursor() as cur:
-            cur.copy_expert(f"COPY {source_identifier} TO STDOUT CSV HEADER", buf) #type: ignore
+            cur.copy_expert(f"COPY {source_identifier} TO STDOUT CSV HEADER", buf)  # type: ignore
         buf.seek(0)
         return buf

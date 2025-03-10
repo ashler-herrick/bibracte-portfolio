@@ -30,6 +30,7 @@ y_train = np.random.randn(TRAIN_SIZE).astype(np.float32)
 X_test = np.random.randn(TEST_SIZE, N_DIMS).astype(np.float32)
 y_test = np.random.randn(TEST_SIZE).astype(np.float32)
 
+
 @pytest.fixture
 def cpu_model():
     """
@@ -43,6 +44,7 @@ def cpu_model():
         batch_size=BATCH_SIZE,
     )
     return model
+
 
 @pytest.fixture
 def gpu_model():
@@ -61,6 +63,7 @@ def gpu_model():
     else:
         pytest.skip("No GPU available for testing")
 
+
 def test_cpu_efficiency(cpu_model, benchmark):
     """
     Benchmark the training efficiency of the CPU model.
@@ -78,15 +81,11 @@ def test_cpu_efficiency(cpu_model, benchmark):
 
     # Benchmark CPU training
     benchmark.pedantic(
-        lambda: cpu_model.fit(
-            train_data=train_dataset,
-            val_data=val_dataset,
-            epochs=5,
-            early_stopping=False
-        ),
+        lambda: cpu_model.fit(train_data=train_dataset, val_data=val_dataset, epochs=5, early_stopping=False),
         iterations=1,
         rounds=1,
     )
+
 
 def test_gpu_efficiency(gpu_model, benchmark):
     """
@@ -105,12 +104,7 @@ def test_gpu_efficiency(gpu_model, benchmark):
 
     # Benchmark GPU training
     benchmark.pedantic(
-        lambda: gpu_model.fit(
-            train_data=train_dataset,
-            val_data=val_dataset,
-            epochs=5,
-            early_stopping=False
-        ),
+        lambda: gpu_model.fit(train_data=train_dataset, val_data=val_dataset, epochs=5, early_stopping=False),
         iterations=1,
         rounds=1,
     )

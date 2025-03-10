@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from io import BytesIO
 from typing import Optional
 
+
 class ICredProvider(ABC):
     """
     An interface for credential providers that fetch and supply credentials for
@@ -90,4 +91,3 @@ class IDataStorage(ABC):
             BytesIO: The data read from the storage as a BytesIO object.
         """
         pass
-

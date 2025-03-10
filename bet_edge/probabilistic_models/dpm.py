@@ -130,15 +130,13 @@ class DeepProbabilisticModel(torch.nn.Module, ABC):
             if dl_val is not None:
                 val_loss = self._validate_epoch(dl_val)
             else:
-                val_loss = float('nan')
+                val_loss = float("nan")
 
             self.train_loss_arr.append(train_loss)
             self.val_loss_arr.append(val_loss)
 
             logger.info(
-                f"Epoch {epoch}/{epochs} -> "
-                f"Train Loss: {train_loss:.6f}, "
-                f"Validation Loss: {val_loss:.6f}"
+                f"Epoch {epoch}/{epochs} -> " f"Train Loss: {train_loss:.6f}, " f"Validation Loss: {val_loss:.6f}"
             )
 
             if early_stopping and dl_val is not None:
@@ -273,7 +271,7 @@ class DeepProbabilisticModel(torch.nn.Module, ABC):
 
         # Concatenate across all batches
         concatenated_logits = torch.cat(all_logits, dim=0)  # [num_samples, n_dist]
-        concatenated_means = torch.cat(all_means, dim=0)    # [num_samples, n_dist]
+        concatenated_means = torch.cat(all_means, dim=0)  # [num_samples, n_dist]
         concatenated_scales = torch.cat(all_scales, dim=0)  # [num_samples, n_dist]
 
         # Create new mixture distribution

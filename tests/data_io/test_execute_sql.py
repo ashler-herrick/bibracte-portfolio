@@ -8,8 +8,8 @@ from bet_edge.data_io.utils import execute_sql
 
 @pytest.fixture
 def postgres_storage():
-
     return PostgresStorage(credential_provider=EnvCredProvider())
+
 
 def test_execute_sql_non_select(postgres_storage):
     # Create a temporary table
@@ -25,6 +25,7 @@ def test_execute_sql_non_select(postgres_storage):
     assert results is not None
     assert results[0][0] == 2
 
+
 def test_execute_sql_select(postgres_storage):
     # Ensure table and data are present (from previous test or setup)
     # If tests run in isolation, run setup steps again or consider a pytest fixture that creates it.
@@ -35,7 +36,8 @@ def test_execute_sql_select(postgres_storage):
 
     # Select data
     results = execute_sql(postgres_storage, "SELECT id, name FROM test_table ORDER BY id;")
-    assert results == [(1, 'Alice'), (2, 'Bob')]
+    assert results == [(1, "Alice"), (2, "Bob")]
+
 
 def test_execute_sql_with_csv_copy(postgres_storage, tmp_path):
     # We can also use the IDataStorage interface to verify integration with CSV using COPY
@@ -55,18 +57,20 @@ def test_execute_sql_with_csv_copy(postgres_storage, tmp_path):
     results = execute_sql(postgres_storage, "SELECT id, value FROM csv_test ORDER BY id;")
     assert results == [(10, "Hello"), (20, "World")]
 
+
 def test_execute_sql_insert_and_select(postgres_storage):
     # Create table
     execute_sql(postgres_storage, "DROP TABLE IF EXISTS sql_test;")
     execute_sql(postgres_storage, "CREATE TABLE sql_test (id INT, name TEXT);")
-    
+
     # Insert data using execute_sql
     execute_sql(postgres_storage, "INSERT INTO sql_test (id, name) VALUES (9, 'Ivan');")
     execute_sql(postgres_storage, "INSERT INTO sql_test (id, name) VALUES (10, 'Judy');")
-    
+
     # Select data
     results = execute_sql(postgres_storage, "SELECT id, name FROM sql_test ORDER BY id;")
-    assert results == [(9, 'Ivan'), (10, 'Judy')]
+    assert results == [(9, "Ivan"), (10, "Judy")]
+
 
 def test_execute_sql_error_handling(postgres_storage):
     # Attempt to execute invalid SQL

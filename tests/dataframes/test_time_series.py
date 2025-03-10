@@ -128,44 +128,33 @@ def test_calc_offset_summary_stats(sample_dfm2):
     )
     assert_frame_equal(result.dataframe, expected_df)
 
+
 def test_add_stats():
     # Mock base DataFrameManager
-    base_df = pl.DataFrame({
-        "id": [1, 2, 3],
-        "season": [2021, 2021, 2021],
-        "team": ["A", "B", "C"]
-    })
-    base_dm = DataFrameManager(base_df, primary_key=["id"], dimensions=["id","season","team"])
+    base_df = pl.DataFrame({"id": [1, 2, 3], "season": [2021, 2021, 2021], "team": ["A", "B", "C"]})
+    base_dm = DataFrameManager(base_df, primary_key=["id"], dimensions=["id", "season", "team"])
 
     # Mock stats DataFrameManager
-    stats_df = pl.DataFrame({
-        "id": [1, 2, 4, 1],
-        "season": [2021, 2021, 2021, 2020],
-        "team": ["A", "B", "C", "A"],
-        "stat": [10, 20, 30, 40]
-    })
-    stats_dm = DataFrameManager(stats_df, primary_key=["id", "season"], dimensions=["id","season","team"])
+    stats_df = pl.DataFrame(
+        {"id": [1, 2, 4, 1], "season": [2021, 2021, 2021, 2020], "team": ["A", "B", "C", "A"], "stat": [10, 20, 30, 40]}
+    )
+    stats_dm = DataFrameManager(stats_df, primary_key=["id", "season"], dimensions=["id", "season", "team"])
 
     # Test without prev_ssn
     result_dm = ts.add_stats(base_dm, stats_dm)
-    expected_df = pl.DataFrame({
-        "id": [1, 2, 3],
-        "season": [2021, 2021, 2021],
-        "team": ["A", "B", "C"],
-        "stat": [10, 20, None]
-    })
-    assert_frame_equal(result_dm.dataframe,expected_df)
+    expected_df = pl.DataFrame(
+        {"id": [1, 2, 3], "season": [2021, 2021, 2021], "team": ["A", "B", "C"], "stat": [10, 20, None]}
+    )
+    assert_frame_equal(result_dm.dataframe, expected_df)
 
     # Test with prev_ssn
     result_dm_prev_ssn = ts.add_stats(base_dm, stats_dm, prev_ssn=True)
-    expected_df_prev_ssn = pl.DataFrame({
-        "id": [1, 2, 3],
-        "season": [2021, 2021, 2021],
-        "team": ["A", "B", "C"],
-        "stat": [40, None, None]  # Stats shouldn't match due to season adjustment
-    })
-    assert_frame_equal(result_dm_prev_ssn.dataframe,expected_df_prev_ssn)
-
-
-
-
+    expected_df_prev_ssn = pl.DataFrame(
+        {
+            "id": [1, 2, 3],
+            "season": [2021, 2021, 2021],
+            "team": ["A", "B", "C"],
+            "stat": [40, None, None],  # Stats shouldn't match due to season adjustment
+        }
+    )
+    assert_frame_equal(result_dm_prev_ssn.dataframe, expected_df_prev_ssn)

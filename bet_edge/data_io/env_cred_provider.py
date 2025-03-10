@@ -25,18 +25,18 @@ class EnvCredProvider(ICredProvider):
     """
 
     ENV_VARS = {
-        #aws
+        # aws
         "aws_access_key_id": "AWS_ACCESS_KEY_ID",
         "aws_secret_access_key": "AWS_SECRET_ACCESS_KEY",
         "aws_session_token": "AWS_SESSION_TOKEN",
         "aws_default_region": "AWS_DEFAULT_REGION",
-        #polygon
-        "polygon_access_key_id" : "POLYGON_ACCESS_KEY_ID",
+        # polygon
+        "polygon_access_key_id": "POLYGON_ACCESS_KEY_ID",
         "polygon_secret_access_key": "POLYGON_SECRET_ACCESS_KEY",
         "polygon_api_key": "POLYGON_API_KEY",
-        #odds api
+        # odds api
         "odds_api_key": "ODDS_API_KEY",
-        #pg creds
+        # pg creds
         "postgres_host": "POSTGRES_HOST",
         "postgres_port": "POSTGRES_PORT",
         "postgres_db": "POSTGRES_DB",

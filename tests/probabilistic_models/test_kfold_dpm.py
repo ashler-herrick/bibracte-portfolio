@@ -112,4 +112,6 @@ def test_kfold_pred_dist(kfold_dpm, synthetic_data):
     assert isinstance(dists, list), "pred_dist should return a list of distribution lists."
     assert len(dists) == 5, "Number of distribution lists does not match number of folds."
     for fold_dists in dists:
-        assert isinstance(fold_dists, torch.distributions.MixtureSameFamily), "Each distribution should be MixtureSameFamily."
+        assert isinstance(
+            fold_dists, torch.distributions.MixtureSameFamily
+        ), "Each distribution should be MixtureSameFamily."

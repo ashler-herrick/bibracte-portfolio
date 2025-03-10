@@ -65,11 +65,16 @@ def calc_summary_stats(
     Returns:
         DataFrameManager: A DataFrameManager containing summary statistics.
     """
-    df = dfm.dataframe.lazy().group_by(group_cols).agg(
-        [pl.mean(f"{col}").alias(_format_col_name(attr, affix, col, "mean")) for col in cols]
-        + [pl.std(f"{col}").alias(_format_col_name(attr, affix, col, "std")) for col in cols]
-        + [pl.count(f"{cols[0]}").alias(_format_col_name(attr, affix, "count", "n"))]
-    ).collect()
+    df = (
+        dfm.dataframe.lazy()
+        .group_by(group_cols)
+        .agg(
+            [pl.mean(f"{col}").alias(_format_col_name(attr, affix, col, "mean")) for col in cols]
+            + [pl.std(f"{col}").alias(_format_col_name(attr, affix, col, "std")) for col in cols]
+            + [pl.count(f"{cols[0]}").alias(_format_col_name(attr, affix, "count", "n"))]
+        )
+        .collect()
+    )
     return DataFrameManager(df, primary_key=group_cols, dimensions=group_cols)
 
 
@@ -99,32 +104,41 @@ def calc_cuml_stats(
         + ["cuml_n"]
     )
     agg = (
-        dfm.dataframe.lazy().group_by(group_cols)
-        .agg(
-            [pl.col(col) for col in dropped_cols]
-            + [(pl.col(col).cum_sum() / pl.col(col).cum_count()).alias(f"cuml_mean_{col}") for col in cols]
-            + [(pl.col(col) ** 2).cum_sum().alias(f"cuml_sum_sq_{col}") for col in cols]
-            + [(pl.col(col)).cum_sum().alias(f"cuml_sum_{col}") for col in cols]
-            + [pl.col(cols[0]).cum_count().alias("cuml_n")]
-        )
-        .explode(explode_cols)
-    ).sort(group_cols).collect()
-
-    stats = agg.lazy().select(
-        dfm.primary_key
-        + [pl.col(f"cuml_mean_{col}").alias(_format_col_name(attr, affix, col, "cuml_mean")) for col in cols]
-        + [
-            (
-                (pl.col(f"cuml_sum_sq_{col}") - (pl.col(f"cuml_sum_{col}") ** 2 / pl.col("cuml_n")))
-                / (pl.col("cuml_n") - 1)
+        (
+            dfm.dataframe.lazy()
+            .group_by(group_cols)
+            .agg(
+                [pl.col(col) for col in dropped_cols]
+                + [(pl.col(col).cum_sum() / pl.col(col).cum_count()).alias(f"cuml_mean_{col}") for col in cols]
+                + [(pl.col(col) ** 2).cum_sum().alias(f"cuml_sum_sq_{col}") for col in cols]
+                + [(pl.col(col)).cum_sum().alias(f"cuml_sum_{col}") for col in cols]
+                + [pl.col(cols[0]).cum_count().alias("cuml_n")]
             )
-            .sqrt()
-            .alias(_format_col_name(attr, affix, col, "cuml_std"))
-            .fill_nan(None)
-            for col in cols
-        ]
-        + [pl.col("cuml_n").alias(_format_col_name(attr, affix, "count", "cuml_n"))]
-    ).collect()
+            .explode(explode_cols)
+        )
+        .sort(group_cols)
+        .collect()
+    )
+
+    stats = (
+        agg.lazy()
+        .select(
+            dfm.primary_key
+            + [pl.col(f"cuml_mean_{col}").alias(_format_col_name(attr, affix, col, "cuml_mean")) for col in cols]
+            + [
+                (
+                    (pl.col(f"cuml_sum_sq_{col}") - (pl.col(f"cuml_sum_{col}") ** 2 / pl.col("cuml_n")))
+                    / (pl.col("cuml_n") - 1)
+                )
+                .sqrt()
+                .alias(_format_col_name(attr, affix, col, "cuml_std"))
+                .fill_nan(None)
+                for col in cols
+            ]
+            + [pl.col("cuml_n").alias(_format_col_name(attr, affix, "count", "cuml_n"))]
+        )
+        .collect()
+    )
 
     return DataFrameManager(stats, primary_key=dfm.primary_key, dimensions=dfm.primary_key)
 
@@ -194,7 +208,7 @@ def add_stats(base: DataFrameManager, stats: DataFrameManager, prev_ssn: bool = 
     """
     if prev_ssn:
         stats = DataFrameManager(
-            stats.dataframe.with_columns((pl.col("season") + 1).alias("season")), 
+            stats.dataframe.with_columns((pl.col("season") + 1).alias("season")),
             primary_key=stats.primary_key,
             dimensions=stats.dimensions,
         )
@@ -257,20 +271,24 @@ def add_rolling_stats(
     """
     df = dfm.dataframe.sort(dfm.primary_key)
     for col in cols:
-        df = df.lazy().with_columns(
-            [
-                pl.col(col)
-                .shift(1)
-                .rolling_mean(window)
-                .over(over_cols)
-                .alias(_format_col_name(attr, f"rolling_{window}", col, "mean")),
-                pl.col(col)
-                .shift(1)
-                .rolling_std(window)
-                .over(over_cols)
-                .alias(_format_col_name(attr, f"rolling_{window}", col, "std")),
-            ]
-        ).collect()
+        df = (
+            df.lazy()
+            .with_columns(
+                [
+                    pl.col(col)
+                    .shift(1)
+                    .rolling_mean(window)
+                    .over(over_cols)
+                    .alias(_format_col_name(attr, f"rolling_{window}", col, "mean")),
+                    pl.col(col)
+                    .shift(1)
+                    .rolling_std(window)
+                    .over(over_cols)
+                    .alias(_format_col_name(attr, f"rolling_{window}", col, "std")),
+                ]
+            )
+            .collect()
+        )
     return DataFrameManager(df, primary_key=dfm.primary_key, dimensions=dfm.dimensions)
 
 
@@ -303,12 +321,17 @@ def calc_grouped_rolling_stats(
     except KeyError:
         dfm = add_rolling_stats(dfm, over_cols, cols, attr, window)
 
-    grouped = dfm.dataframe.lazy().group_by(group_cols).agg(
-        [pl.mean(mean_col).alias("group_" + mean_col) for mean_col in attr_means]
-        + [
-            (pl.col(std_col) ** 2 / pl.col(std_col).count()).mean().sqrt().alias("group_" + std_col)
-            for std_col in attr_stds
-        ]
-    ).collect()
+    grouped = (
+        dfm.dataframe.lazy()
+        .group_by(group_cols)
+        .agg(
+            [pl.mean(mean_col).alias("group_" + mean_col) for mean_col in attr_means]
+            + [
+                (pl.col(std_col) ** 2 / pl.col(std_col).count()).mean().sqrt().alias("group_" + std_col)
+                for std_col in attr_stds
+            ]
+        )
+        .collect()
+    )
     grouped_dfm = DataFrameManager(grouped, primary_key=group_cols, dimensions=group_cols)
     return grouped_dfm

@@ -16,12 +16,12 @@ logger = logging.getLogger(__name__)
 def validate_columns_exist(df_columns: List[str], cols: List[str], raise_err: bool = True) -> bool:
     """
     Standalone helper to check whether the given columns exist in the provided column list.
-   
+
     Args:
         df_columns (List[str]): The list of columns from the DataFrame.
         cols (List[str]): The columns to check for.
         raise_err (bool): If True, raises a KeyError if any columns are missing.
-   
+
     Returns:
         bool: True if all columns are present, False otherwise.
     """
@@ -41,7 +41,7 @@ class LFManager:
     """
     Manages a Polars LazyFrame with functionality around primary keys, dimensions, and measures.
     Only methods that make sense on lazy data (such as foreign key operations) are implemented.
-   
+
     Use to_df_manager() to collect the lazy operations into an eager DFManager.
 
     Attributes:
@@ -50,13 +50,8 @@ class LFManager:
         measures (List[str]): A list of column names representing measures.
         lf (pl.LazyFrame): The underlying LazyFrame.
     """
-    def __init__(
-        self,
-        lf: pl.LazyFrame,
-        primary_key: List[str],
-        dimensions: List[str] = [],
-        measures: List[str] = []
-    ):
+
+    def __init__(self, lf: pl.LazyFrame, primary_key: List[str], dimensions: List[str] = [], measures: List[str] = []):
         if not primary_key:
             raise ValueError("Primary key list cannot be empty.")
         self._lf = lf
@@ -75,7 +70,7 @@ class LFManager:
     def to_df_manager(self) -> "DFManager":
         """
         Collects the lazy frame to create an eager DataFrame and returns a new DFManager.
-       
+
         Returns:
             DFManager: A new DFManager wrapping an eager DataFrame.
         """
@@ -85,10 +80,10 @@ class LFManager:
     def get_foreign_key(self, other: "LFManager") -> List[str]:
         """
         Identifies the foreign key columns shared between this LFManager and another.
-       
+
         Args:
             other (LFManager): Another LFManager instance.
-       
+
         Returns:
             List[str]: The list of common primary key columns.
         """
@@ -99,10 +94,10 @@ class LFManager:
     def get_col_diff(self, other: "LFManager") -> List[str]:
         """
         Identifies columns present in the other LFManager that are not in this one.
-       
+
         Args:
             other (LFManager): The other LFManager instance to compare against.
-       
+
         Returns:
             List[str]: A list of column names present in the other LazyFrame but not in this one.
         """
@@ -118,20 +113,15 @@ class DFManager:
     """
     Manages an eager Polars DataFrame with functionality to handle primary keys,
     deduplication, and other DataFrame operations.
-   
+
     Attributes:
         primary_key (List[str]): A list of column names that constitute the primary key.
         dimensions (List[str]): A list of column names representing dimensions.
         measures (List[str]): A list of column names representing measures.
         df (pl.DataFrame): The underlying DataFrame.
     """
-    def __init__(
-        self,
-        df: pl.DataFrame,
-        primary_key: List[str],
-        dimensions: List[str] = [],
-        measures: List[str] = []
-    ):
+
+    def __init__(self, df: pl.DataFrame, primary_key: List[str], dimensions: List[str] = [], measures: List[str] = []):
         if not primary_key:
             raise ValueError("Primary key list cannot be empty.")
         if isinstance(df, pl.LazyFrame):
@@ -152,7 +142,7 @@ class DFManager:
     def to_lf_manager(self) -> LFManager:
         """
         Converts this DFManager's eager DataFrame into a LazyFrame and returns a new LFManager.
-       
+
         Returns:
             LFManager: A new LFManager wrapping the LazyFrame.
         """
@@ -162,7 +152,7 @@ class DFManager:
     def collect(self) -> "DFManager":
         """
         As DFManager always wraps an eager DataFrame, collect() simply returns itself.
-       
+
         Returns:
             DFManager: Self.
         """
@@ -174,7 +164,7 @@ class DFManager:
     def _get_null_columns(self, cols: Optional[List[str]]) -> List[str]:
         """
         Checks if the specified columns (or all columns if None) contain any null values.
-       
+
         Returns:
             List[str]: The list of column names that contain null values.
         """
@@ -185,7 +175,7 @@ class DFManager:
         null_counts = self._df.select(cols).null_count()
         counts = null_counts.row(0)
         return [col for col, count in zip(cols, counts) if count > 0]
-   
+
     def get_null_rows(self, cols: Optional[List[str]] = None) -> pl.DataFrame:
         """
         Returns rows from the DataFrame that contain at least one null value in the specified columns.
@@ -206,12 +196,8 @@ class DFManager:
         null_cols = self._get_null_columns(cols)
         if null_cols:
             raise ValueError(f"Found {len(null_cols)} columns with nulls: {null_cols}.")
-       
-    def check_completeness(
-        self,
-        other: "DFManager",
-        key_cols: Optional[List[str]] = None
-    ) -> None:
+
+    def check_completeness(self, other: "DFManager", key_cols: Optional[List[str]] = None) -> None:
         """
         Checks that every combination of values in key_cols of the other DFManager is present
         in this DFManager. Raises a ValueError if any combination is missing.

@@ -3,10 +3,11 @@ from pathlib import Path
 
 from bet_edge.data_io.databento import get_dbn_files, dbn_to_polars_dataframe, combine_dbn_files_to_polars
 
-test_path = Path(r'C:\Users\Ashle\OneDrive\Documents\bet_edge\data')
+test_path = Path(r"C:\Users\Ashle\OneDrive\Documents\bet_edge\data")
+
 
 def test_get_dbn_files():
-    dbn_files = get_dbn_files(r'C:\Users\Ashle\OneDrive\Documents\bet_edge\data')
+    dbn_files = get_dbn_files(r"C:\Users\Ashle\OneDrive\Documents\bet_edge\data")
     assert len(dbn_files) == 1
 
 
@@ -28,4 +29,3 @@ def test_combine_dbn_files_to_polars():
 def test_combine_dbn_files_no_files():
     with pytest.raises(FileNotFoundError):
         combine_dbn_files_to_polars(str(tmp_dir))
-

@@ -3,11 +3,11 @@ import polars as pl
 
 from bet_edge.indicators.ohlcv_time_series import calc_rsi
 
+
 @pytest.fixture
 def sample_data():
-    return pl.DataFrame({
-        "price": [100, 102, 101, 103, 105, 104, 106, 108, 107, 109]
-    })
+    return pl.DataFrame({"price": [100, 102, 101, 103, 105, 104, 106, 108, 107, 109]})
+
 
 def test_calc_rsi(sample_data):
     # Define parameters for the RSI calculation
