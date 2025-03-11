@@ -26,6 +26,7 @@ dependencies = [
     "py-vollib>=1.0.1",
     "yfinance>=0.2.54",
     "py-vollib-vectorized>=0.1.1",
+    "memory-profiler>=0.61.0",
 ]
 
 [tool.uv.sources]
