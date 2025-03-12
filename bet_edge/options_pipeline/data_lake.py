@@ -13,6 +13,8 @@ from bet_edge.data_io.env_cred_provider import EnvCredProvider
 
 DATA_LAKE_DIR = r"c:\Users\Ashle\OneDrive\Documents\data_lake"
 dividend_cache = {}
+earnings_cache = {}
+
 logger = logging.getLogger(__name__)
 
 # Initialize AWS S3 session
@@ -31,7 +33,7 @@ s3 = session.client(
 )
 
 
-def load_parquet_file(data_lake_path: str, category: str, date_str: str, agg_key: str = "day_aggs_v1") -> pl.DataFrame:
+def load_parquet_file(category: str, date_str: str, agg_key: str = "day_aggs_v1") -> pl.DataFrame:
     """
     Load a Parquet file from the data lake for the given category and date.
 
@@ -45,7 +47,7 @@ def load_parquet_file(data_lake_path: str, category: str, date_str: str, agg_key
         pl.DataFrame: The loaded Polars DataFrame.
     """
     year, month, day = date_str.split("-")
-    file_path = os.path.join(data_lake_path, category, agg_key, year, month, f"{date_str}.parquet")
+    file_path = os.path.join(DATA_LAKE_DIR, category, agg_key, year, month, f"{date_str}.parquet")
 
     if os.path.exists(file_path):
         logger.info(f"Loading file: {file_path}")
@@ -54,7 +56,7 @@ def load_parquet_file(data_lake_path: str, category: str, date_str: str, agg_key
         raise FileNotFoundError(f"File not found: {file_path}")
     
 
-def scan_parquet_file(data_lake_path: str, category: str, date_str: str, agg_key: str = "day_aggs_v1") -> pl.LazyFrame:
+def scan_parquet_file(category: str, date_str: str, agg_key: str = "day_aggs_v1") -> pl.LazyFrame:
     """
     Load a Parquet file from the data lake for the given category and date.
 
@@ -68,7 +70,7 @@ def scan_parquet_file(data_lake_path: str, category: str, date_str: str, agg_key
         pl.DataFrame: The loaded Polars DataFrame.
     """
     year, month, day = date_str.split("-")
-    file_path = os.path.join(data_lake_path, category, agg_key, year, month, f"{date_str}.parquet")
+    file_path = os.path.join(DATA_LAKE_DIR, category, agg_key, year, month, f"{date_str}.parquet")
 
     if os.path.exists(file_path):
         logger.info(f"Loading file: {file_path}")
@@ -77,7 +79,7 @@ def scan_parquet_file(data_lake_path: str, category: str, date_str: str, agg_key
         raise FileNotFoundError(f"File not found: {file_path}")
 
 
-def download_and_process_s3_data(bucket_name: str, prefix: str, base_local_dir: str = DATA_LAKE_DIR):
+def download_and_process_s3_data(bucket_name: str, prefix: str):
     """
     Download, decompress, and convert CSV files from S3 into Parquet format.
 
@@ -95,7 +97,7 @@ def download_and_process_s3_data(bucket_name: str, prefix: str, base_local_dir: 
                 continue
 
             try:
-                local_file_path = os.path.join(base_local_dir, *object_key.split("/"))
+                local_file_path = os.path.join(DATA_LAKE_DIR, *object_key.split("/"))
                 decompressed_file_path = local_file_path.replace(".gz", "")
                 parquet_file_path = decompressed_file_path.replace(".csv", ".parquet")
 
@@ -122,7 +124,7 @@ def download_and_process_s3_data(bucket_name: str, prefix: str, base_local_dir: 
                 logger.error(f"Error processing {object_key}: {e}")
 
 
-def load_stock_and_option_data(start_date: str, end_date: str, base_dir: str = DATA_LAKE_DIR, stock_category: str = "us_stocks_sip", options_category: str = "us_options_opra"):
+def load_stock_and_option_data(start_date: str, end_date: str, stock_category: str = "us_stocks_sip", options_category: str = "us_options_opra"):
     """
     Load stock and options data for a range of dates.
 
@@ -146,14 +148,14 @@ def load_stock_and_option_data(start_date: str, end_date: str, base_dir: str = D
         logger.info(f"Loading data for date: {date_str}")
 
         try:
-            stock_df = load_parquet_file(base_dir, stock_category, date_str)
+            stock_df = load_parquet_file(stock_category, date_str)
             if stock_df is not None:
                 stock_dfs.append(stock_df)
         except Exception as e:
             logger.error(f"Error loading stock data for {date_str}: {e}")
 
         try:
-            options_df = load_parquet_file(base_dir, options_category, date_str)
+            options_df = load_parquet_file(options_category, date_str)
             if options_df is not None:
                 options_dfs.append(options_df)
         except Exception as e:
@@ -175,7 +177,7 @@ def load_stock_and_option_data(start_date: str, end_date: str, base_dir: str = D
     return stock_data, options_data
 
 
-def load_dividend_data(tickers: Union[List[str], str], base_dir: str = "data_lake") -> pl.DataFrame:
+def load_dividend_data(tickers: Union[List[str], str]) -> pl.DataFrame:
     """
     Load dividend data for one or more tickers from the data lake.
     Uses a cache to avoid multiple reads.
@@ -195,7 +197,7 @@ def load_dividend_data(tickers: Union[List[str], str], base_dir: str = "data_lak
         if ticker in dividend_cache:
             df = dividend_cache[ticker]
         else:
-            file_path = os.path.join(base_dir, "dividends_by_ticker", f"{ticker}.parquet")
+            file_path = os.path.join(DATA_LAKE_DIR, "dividends_by_ticker", f"{ticker}.parquet")
             if os.path.exists(file_path):
                 df = pl.read_parquet(file_path)
                 # Ensure 'ex_dividend_date' is in datetime format
@@ -216,3 +218,44 @@ def load_dividend_data(tickers: Union[List[str], str], base_dir: str = "data_lak
     # Return concatenated DataFrame if there are multiple tickers, else return single DataFrame
     return pl.concat(dfs) if dfs else pl.DataFrame()
 
+
+def load_earnings_data(tickers: Union[List[str], str]) -> pl.DataFrame:
+    """
+    Load earnings data for one or more tickers from the data lake.
+    Uses a cache to avoid multiple reads.
+    
+    Args:
+        tickers (List[str] | str): List of stock ticker symbols or a single ticker symbol.
+        base_dir (str, optional): Base directory for the data lake. Defaults to "data_lake".
+
+    Returns:
+        pl.DataFrame: The loaded earnings data for all requested tickers.
+    """
+    if isinstance(tickers, str):
+        tickers = [tickers]  # Convert single ticker to list
+    
+    dfs = []
+    for ticker in tickers:
+        if ticker in earnings_cache:
+            df = earnings_cache[ticker]
+        else:
+            file_path = os.path.join(DATA_LAKE_DIR, "earnings_by_ticker", f"{ticker}.parquet")
+            if os.path.exists(file_path):
+                df = pl.read_parquet(file_path)
+                # Ensure 'Earnings Date' is in datetime format
+                #if df.schema.get("Earnings Date") not in {pl.Datetime("ns"), pl.Datetime("ms")}:
+                #    df = df.with_columns(
+                #        pl.col("Earnings Date").str.strptime(pl.Datetime, format="%Y-%m-%d")
+                #    )
+                earnings_cache[ticker] = df
+            else:
+                earnings_cache[ticker] = pl.DataFrame()
+                df = pl.DataFrame()
+
+        if df.height > 0:
+            # Add a ticker column to identify data source
+            df = df.with_columns(pl.lit(ticker).alias("ticker"))
+            dfs.append(df)
+
+    # Return concatenated DataFrame if multiple tickers, else return an empty DataFrame
+    return pl.concat(dfs) if dfs else pl.DataFrame()

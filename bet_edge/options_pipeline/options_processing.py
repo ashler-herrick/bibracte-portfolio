@@ -134,16 +134,17 @@ def compute_vectorized_option_metrics(df: pl.DataFrame, risk_free_rate: float = 
 
     # Add the computed arrays back into the DataFrame.
     df = df.with_columns([
+        (pl.col("stock_close")/pl.col("strike_price")).alias("moneyness"),
         pl.Series("implied_vol", iv),
         pl.Series("delta", greeks["delta"]),
         pl.Series("gamma", greeks["gamma"]),
         pl.Series("theta", greeks["theta"]),
-        pl.Series("vega", greeks["vega"])
+        pl.Series("vega", greeks["vega"]),
     ])
     return df
 
 
-def compute_vectorized_option_metrics_chunked(df: pl.DataFrame, risk_free_rate: float = 0.01, chunk_size: int = 10_000_000) -> pl.DataFrame:
+def compute_vectorized_option_metrics_chunked(df: pl.DataFrame, risk_free_rate: float = 0.01, chunk_size: int = 1_000_000) -> pl.DataFrame:
     chunks = []
     n = df.height
     for i in range(0, n, chunk_size):
